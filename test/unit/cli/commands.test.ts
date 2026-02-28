@@ -50,6 +50,7 @@ function cli(
         SOLANA_NETWORK: 'devnet',
         NO_COLOR: '1',   // disable ANSI codes for easier assertion
         CI: '1',
+        WALLET_PASSWORD: 'password123',
         ...env,
       },
       cwd,

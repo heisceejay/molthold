@@ -12,30 +12,30 @@
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { spawnSync, spawn } from 'node:child_process';
-import * as fs   from 'node:fs';
-import * as os   from 'node:os';
+import * as fs from 'node:fs';
+import * as os from 'node:os';
 import * as path from 'node:path';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-const CLI_ENTRY  = path.resolve(__dirname, '../../../src/cli/index.ts');
+const CLI_ENTRY = path.resolve(__dirname, '../../../src/cli/index.ts');
 const DEVNET_URL = process.env['SOLANA_RPC_URL'] ?? 'https://api.devnet.solana.com';
-const TEST_PASS  = 'integration-test-password-456';
-const SKIP       = process.env['WALLET_SECRET_KEY'] === undefined;
-const itDev      = SKIP ? it.skip : it;
+const TEST_PASS = 'integration-test-password-456';
+const SKIP = process.env['WALLET_SECRET_KEY'] === undefined;
+const itDev = SKIP ? it.skip : it;
 
 function cliSync(args: string[], cwd: string, extra: Record<string, string> = {}) {
   return spawnSync('npx', ['tsx', CLI_ENTRY, ...args], {
     encoding: 'utf8',
-    timeout:  60_000,
+    timeout: 60_000,
     env: {
       ...process.env,
-      NODE_ENV:        'test',
-      SOLANA_RPC_URL:  DEVNET_URL,
-      SOLANA_NETWORK:  'devnet',
+      NODE_ENV: 'test',
+      SOLANA_RPC_URL: DEVNET_URL,
+      SOLANA_NETWORK: 'devnet',
       WALLET_PASSWORD: TEST_PASS,
-      NO_COLOR:        '1',
-      CI:              '1',
+      NO_COLOR: '1',
+      CI: '1',
       ...extra,
     },
     cwd,
@@ -44,8 +44,8 @@ function cliSync(args: string[], cwd: string, extra: Record<string, string> = {}
 
 // ── Setup ─────────────────────────────────────────────────────────────────────
 
-let tmpDir:  string;
-let dbPath:  string;
+let tmpDir: string;
+let dbPath: string;
 const AGENT_NAME = 'monitor-integ';
 
 beforeAll(() => {
@@ -71,12 +71,12 @@ describe('agentw agent start — integration', () => {
       // Build a minimal agents.json for the monitor strategy
       const agentsJson = [
         {
-          id:             AGENT_NAME,
-          keystorePath:   kpPath,
-          strategy:       'monitor',
+          id: AGENT_NAME,
+          keystorePath: kpPath,
+          strategy: 'monitor',
           strategyParams: { trackedMints: [] },
-          intervalMs:     3_000,
-          limits:         { maxPerTxSol: 0.01, maxSessionSol: 0.1 },
+          intervalMs: 3_000,
+          limits: { maxPerTxSol: 0.01, maxSessionSol: 0.1 },
         },
       ];
       const agentsConfigPath = path.join(tmpDir, 'agents.json');
@@ -87,18 +87,18 @@ describe('agentw agent start — integration', () => {
         'npx',
         ['tsx', CLI_ENTRY, 'agent', 'start', '--config', agentsConfigPath, '--db', dbPath, '--log-level', 'info'],
         {
-          encoding: 'utf8',
+          stdio: 'pipe',
           env: {
             ...process.env,
-            NODE_ENV:        'test',
-            SOLANA_RPC_URL:  DEVNET_URL,
-            SOLANA_NETWORK:  'devnet',
+            NODE_ENV: 'test',
+            SOLANA_RPC_URL: DEVNET_URL,
+            SOLANA_NETWORK: 'devnet',
             WALLET_PASSWORD: TEST_PASS,
-            NO_COLOR:        '1',
+            NO_COLOR: '1',
           },
           cwd: tmpDir,
         },
-      );
+      ) as any;
 
       let stdoutBuf = '';
       let stderrBuf = '';
@@ -161,14 +161,14 @@ describe('agentw agent start — integration', () => {
 describe('agentw agent log — integration', () => {
   it('GATE: exits 0 and shows events after agent has run', () => {
     // Seed the DB with some events
-    const { AuditDb } = require('../../../src/logger/audit.js') as typeof import('../../../src/logger/audit.js');
+    const { AuditDb } = require('../../../dist/logger/audit.js') as typeof import('../../../src/logger/audit.js');
     const testDbPath = path.join(tmpDir, 'log-test.db');
     const db = new AuditDb(testDbPath);
-    db.log('log-test-agent', 'pk1', 'agent_start',    { strategy: 'monitor' });
-    db.log('log-test-agent', 'pk1', 'agent_noop',     { tick: 1, rationale: 'monitor tick' });
-    db.log('log-test-agent', 'pk1', 'agent_noop',     { tick: 2, rationale: 'monitor tick' });
-    db.log('log-test-agent', 'pk1', 'tx_confirmed',   { tick: 3, action: 'swap' }, { signature: 'sig123', status: 'confirmed' });
-    db.log('log-test-agent', 'pk1', 'agent_stop',     { tickCount: 3 });
+    db.log('log-test-agent', 'pk1', 'agent_start', { strategy: 'monitor' });
+    db.log('log-test-agent', 'pk1', 'agent_noop', { tick: 1, rationale: 'monitor tick' });
+    db.log('log-test-agent', 'pk1', 'agent_noop', { tick: 2, rationale: 'monitor tick' });
+    db.log('log-test-agent', 'pk1', 'tx_confirmed', { tick: 3, action: 'swap' }, { signature: 'sig123', status: 'confirmed' });
+    db.log('log-test-agent', 'pk1', 'agent_stop', { tickCount: 3 });
     db.close();
 
     const result = cliSync(
@@ -185,7 +185,7 @@ describe('agentw agent log — integration', () => {
 
   it('GATE: --last limits number of returned rows', () => {
     const testDbPath = path.join(tmpDir, 'limit-test.db');
-    const { AuditDb } = require('../../../src/logger/audit.js') as typeof import('../../../src/logger/audit.js');
+    const { AuditDb } = require('../../../dist/logger/audit.js') as typeof import('../../../src/logger/audit.js');
     const db = new AuditDb(testDbPath);
     for (let i = 0; i < 10; i++) {
       db.log('test-agent', 'pk1', 'agent_noop', { tick: i });
