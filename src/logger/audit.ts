@@ -59,6 +59,7 @@ export interface AuditRow {
 
 export interface QueryOptions {
   agentId?: string;
+  walletPk?: string;
   event?: AuditEventType;
   limit?: number;
   before?: string; // ISO timestamp
@@ -172,12 +173,13 @@ export class AuditDb {
 
   /** Returns the most recent N events, optionally filtered. */
   query(opts: QueryOptions = {}): AuditRow[] {
-    const { agentId, event, limit = 50, before } = opts;
+    const { agentId, walletPk, event, limit = 50, before } = opts;
 
     const conditions: string[] = [];
     const params: Record<string, unknown> = {};
 
     if (agentId) { conditions.push('agent_id = @agentId'); params['agentId'] = agentId; }
+    if (walletPk) { conditions.push('wallet_pk = @walletPk'); params['walletPk'] = walletPk; }
     if (event) { conditions.push('event = @event'); params['event'] = event; }
     if (before) { conditions.push('ts < @before'); params['before'] = before; }
 
@@ -196,10 +198,17 @@ export class AuditDb {
   }
 
   /** Total event count — useful for assertions in tests. */
-  count(agentId?: string): number {
-    const row = agentId
-      ? this.db.prepare('SELECT COUNT(*) as n FROM events WHERE agent_id = ?').get(agentId) as { n: number }
-      : this.db.prepare('SELECT COUNT(*) as n FROM events').get() as { n: number };
+  count(agentId?: string, walletPk?: string): number {
+    const conditions: string[] = [];
+    const params: any[] = [];
+
+    if (agentId) { conditions.push('agent_id = ?'); params.push(agentId); }
+    if (walletPk) { conditions.push('wallet_pk = ?'); params.push(walletPk); }
+
+    const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+    const sql = `SELECT COUNT(*) as n FROM events ${where}`;
+
+    const row = this.db.prepare(sql).get(...params) as { n: number };
     return row.n;
   }
 

@@ -11,6 +11,7 @@ import * as path from 'node:path';
 import { Command } from 'commander';
 import { createLogger } from '../../logger/index.js';
 import { MultiAgentManager, loadAgentConfigs } from '../../agent/manager.js';
+import { getPublicKeyFromKeystore } from '../../wallet/keystore.js';
 import type { AgentLoopState } from '../../agent/types.js';
 
 export const dashboardCommand = new Command('dashboard')
@@ -23,15 +24,9 @@ export const dashboardCommand = new Command('dashboard')
         const auditDbPath = process.env['AUDIT_DB_PATH'] ?? './logs/audit.db';
         const port = parseInt(opts.port, 10);
 
-        const configs = loadAgentConfigs(opts.config);
-        if (configs.length === 0) {
-            logger.error('No agents found in configuration file');
-            process.exit(1);
-        }
+        const manager = new MultiAgentManager([], logger, rpcUrl, auditDbPath);
 
-        const manager = new MultiAgentManager(configs, logger, rpcUrl, auditDbPath);
-
-        logger.info(`Starting Dashboard Server observing ${configs.length} agents... (Run 'agentw agent start' separately to boot execution loops!)`);
+        logger.info(`Starting Dashboard Server... (Run 'agentw agent start' separately to boot execution loops!)`);
 
         // Setup graceful shutdown
         let isShuttingDown = false;
@@ -68,50 +63,93 @@ export const dashboardCommand = new Command('dashboard')
             }
 
             if (req.method === 'GET' && req.url === '/api/agents') {
+                const configs = loadAgentConfigs(opts.config);
                 const states = manager.getAgentStates();
-                // Convert to the exact `AGENTS` map format expected by the frontend
+                const auditDb = manager.getAuditDb();
+
+                // 1. Discovery phase: collect unique IDs from all sources
+                const allAgentIds = new Set<string>();
+                configs.forEach(c => allAgentIds.add(c.id));
+                states.forEach(s => allAgentIds.add(s.agentId));
+                try {
+                    const historical = auditDb.summarise();
+                    historical.forEach(h => allAgentIds.add(h.agent_id));
+                } catch (e) { }
+
+                // Also scan keystores directory
+                const keystoresDir = path.resolve(process.cwd(), 'keystores');
+                if (fs.existsSync(keystoresDir)) {
+                    fs.readdirSync(keystoresDir).forEach(f => {
+                        if (f.endsWith('.keystore.json')) {
+                            allAgentIds.add(f.replace('.keystore.json', ''));
+                        }
+                    });
+                }
+
                 const agentMap: Record<string, any> = {};
 
-                for (const config of configs) {
-                    // Skip agents whose keystore has been deleted
-                    if (!fs.existsSync(config.keystorePath)) {
+                for (const agentId of allAgentIds) {
+                    const config = configs.find(c => c.id === agentId);
+                    const state = states.find(s => s.agentId === agentId);
+                    const ksPathRelative = config?.keystorePath || path.join('keystores', `${agentId}.keystore.json`);
+                    const ksPathAbsolute = path.resolve(process.cwd(), ksPathRelative);
+
+                    // STRICT VISIBILITY: If the keystore is gone, the agent is gone.
+                    if (!fs.existsSync(ksPathAbsolute)) {
                         continue;
                     }
 
-                    const state = states.find(s => s.agentId === config.id);
+                    // IDENTITY: The wallet public key defines the "session" for this agent ID.
+                    let currentPubkey = 'Unknown';
+                    try {
+                        currentPubkey = getPublicKeyFromKeystore(ksPathAbsolute);
+                    } catch (e) { /* ignore corrupt keystore */ }
 
                     // Count errors by doing a quick group query on the DB
                     let errorCount = 0;
                     try {
-                        const auditDb = manager.getAuditDb();
-                        const errors = auditDb.query({ agentId: config.id, event: 'agent_error', limit: 1000 });
+                        const errors = auditDb.query({
+                            agentId: agentId,
+                            walletPk: currentPubkey,
+                            event: 'agent_error',
+                            limit: 1000
+                        });
                         errorCount = errors.length;
-                    } catch (e) {
-                        // Ignore if db is locked
-                    }
+                    } catch (e) { }
 
                     let swapCount = 0;
                     let lpCount = 0;
                     let latestSolBalance = 0;
-                    let latestPubkey = 'Unknown';
+                    let latestPubkey = currentPubkey;
                     let latestTick = 0;
-                    let latestStrategy = config.strategy.toUpperCase();
+                    let latestStrategy = config?.strategy.toUpperCase() ?? 'UNKNOWN';
                     let isHeartbeatRunning = false;
 
                     try {
-                        const auditDb = manager.getAuditDb();
-
                         // 1. Calculate counts
-                        const swaps = auditDb.query({ agentId: config.id, event: 'tx_attempt', limit: 1000 });
-                        const successes = auditDb.query({ agentId: config.id, event: 'tx_confirmed', limit: 1000 });
+                        const swaps = auditDb.query({
+                            agentId: agentId,
+                            walletPk: currentPubkey,
+                            event: 'tx_attempt',
+                            limit: 1000
+                        });
+                        const successes = auditDb.query({
+                            agentId: agentId,
+                            walletPk: currentPubkey,
+                            event: 'tx_confirmed',
+                            limit: 1000
+                        });
                         for (const row of successes) {
                             if (row.details_json.includes('"provide_liquidity"')) lpCount++;
                         }
                         swapCount = swaps.length;
 
                         // 2. Fetch latest state from DB (Persistence)
-                        // Look back up to 50 rows to find a valid SOL balance (events like start/stop/error don't always have it)
-                        const recentRows = auditDb.query({ agentId: config.id, limit: 50 });
+                        const recentRows = auditDb.query({
+                            agentId: agentId,
+                            walletPk: currentPubkey,
+                            limit: 50
+                        });
                         const latestRow = recentRows[0];
 
                         if (latestRow) {
@@ -130,27 +168,23 @@ export const dashboardCommand = new Command('dashboard')
 
                             const details = JSON.parse(latestRow.details_json);
                             latestTick = details.tickCount ?? 0;
-                            latestStrategy = details.strategy ? String(details.strategy).toUpperCase() : config.strategy.toUpperCase();
+                            latestStrategy = details.strategy ? String(details.strategy).toUpperCase() : (config?.strategy.toUpperCase() ?? 'UNKNOWN');
 
-                            // 3. Heartbeat detection (Decoupled execution)
-                            // If the latest event is 'agent_stop', it is definitely NOT running
                             if (latestRow.event !== 'agent_stop') {
                                 const rowTime = new Date(latestRow.ts).getTime();
                                 const now = Date.now();
-                                // Responsive Heartbeat: 2.5x the agent interval, min 30s
-                                const threshold = Math.max(30_000, config.intervalMs * 2.5);
+                                const interval = config?.intervalMs ?? 30000;
+                                const threshold = Math.max(30_000, interval * 2.5);
                                 if ((now - rowTime) < threshold) {
                                     isHeartbeatRunning = true;
                                 }
                             }
                         }
-                    } catch (e) {
-                        // Ignore if db is locked
-                    }
+                    } catch (e) { }
 
                     const isRunning = (state !== undefined) || isHeartbeatRunning;
 
-                    agentMap[config.id] = {
+                    agentMap[agentId] = {
                         strategy: state?.strategy.toUpperCase() ?? latestStrategy,
                         ticks: isRunning ? (state?.tickCount ?? latestTick) : 0,
                         swaps: isRunning ? swapCount : 0,
@@ -170,79 +204,97 @@ export const dashboardCommand = new Command('dashboard')
             }
 
             if (req.method === 'GET' && req.url === '/api/events') {
+                const configs = loadAgentConfigs(opts.config);
                 // Return 100 most recent events across all agents
                 try {
                     const auditDb = manager.getAuditDb();
-                    const rows = auditDb.query({ limit: 100 });
+
+                    const states = manager.getAgentStates() as AgentLoopState[];
+                    const keystoresDir = path.resolve(process.cwd(), 'keystores');
 
                     // Group by agent ID as expected by `allEvents`
-                    const states = manager.getAgentStates();
+                    // Discovery phase: collect unique IDs from all sources for event mapping
+                    const allAgentIds = new Set<string>();
+                    configs.forEach(c => allAgentIds.add(c.id));
+                    states.forEach(s => allAgentIds.add(s.agentId));
+                    try {
+                        const historical = auditDb.summarise();
+                        historical.forEach(h => allAgentIds.add(h.agent_id));
+                    } catch (e) { }
+
+                    // Also scan keystores
+                    if (fs.existsSync(keystoresDir)) {
+                        fs.readdirSync(keystoresDir).forEach(f => {
+                            if (f.endsWith('.keystore.json')) {
+                                allAgentIds.add(f.replace('.keystore.json', ''));
+                            }
+                        });
+                    }
+
                     const eventsMap: Record<string, any[]> = {};
                     const tickHistoryMap: Record<string, string[]> = {};
                     let totalEvents = 0;
 
-                    for (const config of configs) {
-                        if (!fs.existsSync(config.keystorePath)) {
+                    for (const agentId of allAgentIds) {
+                        const config = configs.find(c => c.id === agentId);
+                        const ksPathRelative = config?.keystorePath || path.join('keystores', `${agentId}.keystore.json`);
+                        const ksPathAbsolute = path.resolve(process.cwd(), ksPathRelative);
+
+                        // STRICT VISIBILITY: If the keystore is gone, the agent is gone.
+                        if (!fs.existsSync(ksPathAbsolute)) {
                             continue;
                         }
-                        eventsMap[config.id] = [];
-                        tickHistoryMap[config.id] = Array(12).fill('noop');
-                    }
 
-                    for (const row of rows) {
-                        // FIX: Detect heartbeat to decide if agent is "active" for this UI session
-                        const latestForAgent = auditDb.query({ agentId: row.agent_id, limit: 1 })[0];
-                        const agentIsRunningLocally = states.some(s => s.agentId === row.agent_id);
-
-                        let heartbeatActive = false;
-                        if (latestForAgent) {
-                            const lastActionTime = new Date(latestForAgent.ts).getTime();
-                            if ((Date.now() - lastActionTime) < 300_000) heartbeatActive = true;
-                        }
-
-                        if (!agentIsRunningLocally && !heartbeatActive) continue;
-
-                        if (!eventsMap[row.agent_id]) {
-                            eventsMap[row.agent_id] = [];
-                            tickHistoryMap[row.agent_id] = Array(12).fill('noop');
-                        }
-
-                        let details: any = {};
+                        let currentPubkey = '';
                         try {
-                            details = JSON.parse(row.details_json);
-                        } catch (e) {
-                            // ignore parse errors
+                            currentPubkey = getPublicKeyFromKeystore(ksPathAbsolute);
+                        } catch (e) { continue; }
+
+                        eventsMap[agentId] = [];
+                        tickHistoryMap[agentId] = Array(12).fill('noop');
+
+                        // IDENTITY: Filter events specifically for this wallet
+                        const agentRows = auditDb.query({
+                            agentId: agentId,
+                            walletPk: currentPubkey,
+                            limit: 50
+                        });
+
+                        for (const row of agentRows) {
+                            let details: any = {};
+                            try {
+                                details = JSON.parse(row.details_json);
+                            } catch (e) { }
+
+                            const isLP = details.action === 'provide_liquidity' || row.event.includes('lp');
+                            const isSwap = details.action === 'swap' || row.event.includes('swap') || row.event === 'tx_attempt' || row.event === 'tx_confirmed';
+
+                            let tagClass = 'noop';
+                            if (row.event.includes('error') || row.event.includes('fail') || row.event === 'limit_breach') {
+                                tagClass = 'error';
+                            } else if (row.event === 'tx_confirmed' || row.event === 'agent_action') {
+                                tagClass = isLP ? 'provide_liquidity' : 'confirmed';
+                            } else if (row.event === 'tx_attempt' || isSwap) {
+                                tagClass = isLP ? 'provide_liquidity' : 'swap';
+                            }
+
+                            const evt = {
+                                id: `${row.ts}-${row.agent_id}-${row.signature || 'no-sig'}`,
+                                tick: details.tickCount ?? 0,
+                                type: row.event,
+                                tagClass,
+                                label: row.event.toUpperCase(),
+                                main: details.message ?? row.event,
+                                meta: row.signature ? `sig: ${row.signature.slice(0, 16)}…` : '',
+                                ts: new Date(row.ts).getTime(),
+                                agentId: row.agent_id,
+                                isNew: false
+                            };
+
+                            eventsMap[agentId]!.push(evt);
+                            tickHistoryMap[agentId] = [...tickHistoryMap[agentId]!.slice(1), tagClass];
+                            totalEvents++;
                         }
-
-                        const isLP = details.action === 'provide_liquidity' || row.event.includes('lp');
-                        const isSwap = details.action === 'swap' || row.event.includes('swap') || row.event === 'tx_attempt' || row.event === 'tx_confirmed';
-
-                        let tagClass = 'noop';
-                        if (row.event.includes('error') || row.event.includes('fail') || row.event === 'limit_breach') {
-                            tagClass = 'error';
-                        } else if (row.event === 'tx_confirmed' || row.event === 'agent_action') {
-                            tagClass = isLP ? 'provide_liquidity' : 'confirmed';
-                        } else if (row.event === 'tx_attempt' || isSwap) {
-                            tagClass = isLP ? 'provide_liquidity' : 'swap';
-                        }
-
-                        const evt = {
-                            id: `${row.ts}-${row.agent_id}-${row.signature || 'no-sig'}`,
-                            tick: details.tickCount ?? 0,
-                            type: row.event,
-                            tagClass,
-                            label: row.event.toUpperCase(),
-                            main: details.message ?? row.event,
-                            meta: row.signature ? `sig: ${row.signature.slice(0, 16)}…` : '',
-                            ts: new Date(row.ts).getTime(),
-                            agentId: row.agent_id,
-                            isNew: false
-                        };
-
-                        eventsMap[row.agent_id]!.push(evt);
-
-                        tickHistoryMap[row.agent_id] = [...tickHistoryMap[row.agent_id]!.slice(1), tagClass];
-                        totalEvents++;
                     }
 
                     // Ensure events are strictly sorted descending by timestamp before reaching the UI mapping loop
