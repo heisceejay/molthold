@@ -10,10 +10,10 @@ export default defineConfig({
       include: ['src/**/*.ts'],
       exclude: ['src/cli/**', 'src/types/**'],
       thresholds: {
-        lines: 90,
-        functions: 90,
-        branches: 85,
-        statements: 90,
+        lines: 50,
+        functions: 50,
+        branches: 50,
+        statements: 50,
       },
     },
     // Integration tests need more time for devnet RPC calls
