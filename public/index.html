@@ -1,0 +1,1031 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MOLTHOLD — Agent Actions</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500&family=Bebas+Neue&display=swap');
+
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    :root {
+      --black: #080808;
+      --deep: #0d0d0d;
+      --surface: #111111;
+      --border: #1a1a1a;
+      --muted: #2a2a2a;
+      --dim: #444;
+      --mid: #666;
+      --text: #c8c8c8;
+      --bright: #e8e8e8;
+      --red: #e8001a;
+      --red-dim: #8a0010;
+      --red-glow: rgba(232, 0, 26, 0.12);
+      --red-faint: rgba(232, 0, 26, 0.04);
+      --green: #00b368;
+      --amber: #d4620a;
+    }
+
+    html {
+      background: var(--black);
+      height: 100%;
+    }
+
+    body {
+      font-family: 'IBM Plex Mono', monospace;
+      background: var(--black);
+      color: var(--text);
+      min-height: 100vh;
+      overflow-x: hidden;
+      font-size: 13px;
+      line-height: 1;
+    }
+
+    /* ── Scanline overlay ─── */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background: repeating-linear-gradient(0deg,
+          transparent,
+          transparent 2px,
+          rgba(0, 0, 0, 0.07) 2px,
+          rgba(0, 0, 0, 0.07) 4px);
+      pointer-events: none;
+      z-index: 1000;
+    }
+
+    /* ── Top bar ─── */
+    header {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      padding: 28px 32px 20px;
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      background: var(--black);
+      z-index: 10;
+    }
+
+    .wordmark {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 28px;
+      letter-spacing: 0.12em;
+      color: var(--bright);
+    }
+
+    .wordmark span {
+      color: var(--red);
+    }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 24px;
+    }
+
+    .live-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--red);
+      box-shadow: 0 0 8px var(--red);
+      animation: pulse 2s ease-in-out infinite;
+      display: inline-block;
+    }
+
+    @keyframes pulse {
+
+      0%,
+      100% {
+        opacity: 1;
+        box-shadow: 0 0 8px var(--red);
+      }
+
+      50% {
+        opacity: 0.3;
+        box-shadow: 0 0 2px var(--red);
+      }
+    }
+
+    .header-meta {
+      font-size: 11px;
+      color: var(--mid);
+      letter-spacing: 0.06em;
+    }
+
+    /* ── Main grid ─── */
+    .layout {
+      display: grid;
+      grid-template-columns: 260px 1fr 280px;
+      grid-template-rows: auto 1fr;
+      height: calc(100vh - 73px);
+      gap: 0;
+    }
+
+    /* ── Sidebar — agents ─── */
+    .sidebar {
+      border-right: 1px solid var(--border);
+      padding: 0;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .sidebar-label {
+      font-size: 9px;
+      letter-spacing: 0.2em;
+      color: var(--mid);
+      padding: 16px 20px 10px;
+      border-bottom: 1px solid var(--border);
+      text-transform: uppercase;
+    }
+
+    .agent-item {
+      padding: 14px 20px;
+      border-bottom: 1px solid var(--border);
+      cursor: pointer;
+      transition: background 0.1s;
+      position: relative;
+    }
+
+    .agent-item:hover {
+      background: var(--surface);
+    }
+
+    .agent-item.active {
+      background: var(--red-faint);
+      border-left: 2px solid var(--red);
+      padding-left: 18px;
+    }
+
+    .agent-item.active::after {
+      content: '';
+      position: absolute;
+      right: 0;
+      top: 0;
+      bottom: 0;
+      width: 1px;
+      background: var(--red);
+      opacity: 0.4;
+    }
+
+    .agent-name {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--bright);
+      letter-spacing: 0.04em;
+      margin-bottom: 6px;
+    }
+
+    .agent-item.active .agent-name {
+      color: var(--red);
+    }
+
+    .agent-strategy {
+      font-size: 10px;
+      color: var(--mid);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+
+    .agent-pubkey {
+      font-size: 9px;
+      color: var(--dim);
+      letter-spacing: 0.02em;
+      word-break: break-all;
+      line-height: 1.4;
+    }
+
+    .agent-status-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 8px;
+    }
+
+    .status-badge {
+      font-size: 9px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      padding: 2px 6px;
+      border: 1px solid;
+    }
+
+    .status-badge.running {
+      color: var(--green);
+      border-color: var(--green);
+      background: rgba(0, 179, 104, 0.06);
+    }
+
+    .status-badge.stopped {
+      color: var(--dim);
+      border-color: var(--muted);
+    }
+
+    .status-badge.error {
+      color: var(--red);
+      border-color: var(--red-dim);
+      background: var(--red-faint);
+    }
+
+    .tick-count {
+      font-size: 9px;
+      color: var(--dim);
+    }
+
+    /* ── Main feed ─── */
+    .feed {
+      overflow-y: auto;
+      position: relative;
+    }
+
+    .feed-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 24px;
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      background: var(--black);
+      z-index: 5;
+    }
+
+    .feed-title {
+      font-size: 11px;
+      color: var(--mid);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .feed-controls {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .filter-btn {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 0.08em;
+      color: var(--mid);
+      background: none;
+      border: 1px solid var(--border);
+      padding: 4px 10px;
+      cursor: pointer;
+      text-transform: uppercase;
+      transition: all 0.1s;
+    }
+
+    .filter-btn:hover {
+      border-color: var(--dim);
+      color: var(--text);
+    }
+
+    .filter-btn.active {
+      border-color: var(--red);
+      color: var(--red);
+      background: var(--red-faint);
+    }
+
+    /* ── Event rows ─── */
+    .event-row {
+      display: grid;
+      grid-template-columns: 68px 100px 1fr auto;
+      gap: 0;
+      border-bottom: 1px solid var(--border);
+      padding: 0;
+      align-items: stretch;
+      animation: slideIn 0.2s ease;
+      transition: background 0.1s;
+    }
+
+    .event-row:hover {
+      background: var(--surface);
+    }
+
+    @keyframes slideIn {
+      from {
+        opacity: 0;
+        transform: translateX(-4px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateX(0);
+      }
+    }
+
+    .event-row.new {
+      animation: flashIn 0.4s ease;
+    }
+
+    @keyframes flashIn {
+      0% {
+        background: rgba(232, 0, 26, 0.08);
+      }
+
+      100% {
+        background: transparent;
+      }
+    }
+
+    .col-tick {
+      padding: 12px 16px 12px 24px;
+      font-size: 10px;
+      color: var(--dim);
+      border-right: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      font-weight: 300;
+    }
+
+    .col-type {
+      padding: 12px 14px;
+      border-right: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+    }
+
+    .event-tag {
+      font-size: 9px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      padding: 3px 7px;
+      border: 1px solid;
+    }
+
+    .event-tag.swap {
+      color: var(--red);
+      border-color: var(--red-dim);
+      background: var(--red-faint);
+    }
+
+    .event-tag.provide_liquidity {
+      color: #0088ff;
+      border-color: rgba(0, 136, 255, 0.4);
+      background: rgba(0, 136, 255, 0.04);
+    }
+
+    .event-tag.confirmed {
+      color: var(--green);
+      border-color: rgba(0, 179, 104, 0.3);
+      background: rgba(0, 179, 104, 0.04);
+    }
+
+    .event-tag.noop {
+      color: var(--dim);
+      border-color: var(--muted);
+    }
+
+    .event-tag.error {
+      color: var(--amber);
+      border-color: rgba(212, 98, 10, 0.4);
+      background: rgba(212, 98, 10, 0.04);
+    }
+
+    .event-tag.start {
+      color: var(--mid);
+      border-color: var(--muted);
+    }
+
+    .event-tag.stop {
+      color: var(--mid);
+      border-color: var(--muted);
+    }
+
+    .event-tag.breach {
+      color: var(--red);
+      border-color: var(--red);
+      background: var(--red-faint);
+    }
+
+    .col-detail {
+      padding: 11px 16px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 4px;
+      border-right: 1px solid var(--border);
+    }
+
+    .detail-main {
+      font-size: 11px;
+      color: var(--text);
+      letter-spacing: 0.02em;
+    }
+
+    .detail-meta {
+      font-size: 10px;
+      color: var(--mid);
+      letter-spacing: 0.02em;
+    }
+
+    .detail-meta .sig {
+      color: var(--dim);
+      font-size: 9px;
+    }
+
+    .col-time {
+      padding: 12px 20px 12px 16px;
+      font-size: 10px;
+      color: var(--dim);
+      display: flex;
+      align-items: center;
+      white-space: nowrap;
+      min-width: 72px;
+      justify-content: flex-end;
+    }
+
+    /* ── Right panel — stats ─── */
+    .stats-panel {
+      border-left: 1px solid var(--border);
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .stats-label {
+      font-size: 9px;
+      letter-spacing: 0.2em;
+      color: var(--mid);
+      padding: 16px 20px 10px;
+      border-bottom: 1px solid var(--border);
+      text-transform: uppercase;
+    }
+
+    .stat-block {
+      padding: 18px 20px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .stat-key {
+      font-size: 9px;
+      letter-spacing: 0.14em;
+      color: var(--dim);
+      text-transform: uppercase;
+      margin-bottom: 7px;
+    }
+
+    .stat-value {
+      font-size: 22px;
+      font-weight: 300;
+      color: var(--bright);
+      letter-spacing: -0.01em;
+      line-height: 1;
+    }
+
+    .stat-value.red {
+      color: var(--red);
+    }
+
+    .stat-value.green {
+      color: var(--green);
+    }
+
+    .stat-sub {
+      font-size: 10px;
+      color: var(--mid);
+      margin-top: 4px;
+    }
+
+    /* ── Mini bar chart ─── */
+    .mini-chart {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .chart-label {
+      font-size: 9px;
+      letter-spacing: 0.14em;
+      color: var(--dim);
+      text-transform: uppercase;
+      margin-bottom: 12px;
+    }
+
+    .bars {
+      display: flex;
+      gap: 3px;
+      align-items: flex-end;
+      height: 40px;
+    }
+
+    .bar {
+      flex: 1;
+      background: var(--muted);
+      transition: height 0.3s ease, background 0.2s;
+      min-height: 2px;
+    }
+
+    .bar:hover {
+      background: var(--red);
+    }
+
+    .bar.active {
+      background: var(--red);
+    }
+
+    /* ── Limit meter ─── */
+    .limit-block {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .limit-key {
+      font-size: 9px;
+      letter-spacing: 0.14em;
+      color: var(--dim);
+      text-transform: uppercase;
+      margin-bottom: 10px;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .limit-key span {
+      color: var(--text);
+    }
+
+    .limit-track {
+      height: 2px;
+      background: var(--muted);
+      position: relative;
+      margin-bottom: 4px;
+    }
+
+    .limit-fill {
+      height: 100%;
+      background: var(--red);
+      transition: width 0.5s ease;
+      position: relative;
+    }
+
+    .limit-fill::after {
+      content: '';
+      position: absolute;
+      right: 0;
+      top: -3px;
+      width: 2px;
+      height: 8px;
+      background: var(--red);
+      box-shadow: 0 0 6px var(--red);
+    }
+
+    .limit-fill.safe {
+      background: var(--green);
+    }
+
+    .limit-fill.safe::after {
+      background: var(--green);
+      box-shadow: 0 0 6px var(--green);
+    }
+
+    .limit-labels {
+      display: flex;
+      justify-content: space-between;
+      font-size: 9px;
+      color: var(--dim);
+      margin-top: 4px;
+    }
+
+    /* ── Empty state ─── */
+    .empty {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 200px;
+      color: var(--dim);
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      gap: 8px;
+    }
+
+    .empty::before {
+      content: '—';
+      font-size: 20px;
+      color: var(--muted);
+    }
+
+    /* ── Scrollbar ─── */
+    ::-webkit-scrollbar {
+      width: 3px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: var(--muted);
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: var(--red-dim);
+    }
+
+    /* ── Footer strip ─── */
+    .footer {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 24px;
+      background: var(--black);
+      border-top: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      padding: 0 24px;
+      gap: 24px;
+      z-index: 20;
+    }
+
+    .footer-item {
+      font-size: 9px;
+      letter-spacing: 0.12em;
+      color: var(--dim);
+      text-transform: uppercase;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .footer-item span {
+      color: var(--mid);
+    }
+
+    .footer-sep {
+      color: var(--border);
+    }
+  </style>
+</head>
+
+<body>
+
+  <header>
+    <div class="wordmark">MOLT<span>H</span>OLD</div>
+    <div class="header-right">
+      <div class="header-meta">DEVNET</div>
+      <div class="header-meta" id="clock"></div>
+      <div class="live-dot"></div>
+    </div>
+  </header>
+
+  <div class="layout">
+
+    <!-- ── Sidebar: agents ── -->
+    <aside class="sidebar">
+      <div class="sidebar-label">Agents</div>
+
+      <!-- Agents will be dynamically rendered here -->
+    </aside>
+
+    <!-- ── Main: event feed ── -->
+    <main class="feed">
+      <div class="feed-header">
+        <div class="feed-title">Action Log <span id="feed-agent-label"
+            style="color:var(--red);margin-left:8px">...</span></div>
+        <div class="feed-controls">
+          <button class="filter-btn active" onclick="setFilter('all',this)">All</button>
+          <button class="filter-btn" onclick="setFilter('swap',this)">Swap</button>
+          <button class="filter-btn" onclick="setFilter('provide_liquidity',this)">LP</button>
+          <button class="filter-btn" onclick="setFilter('error',this)">Error</button>
+          <button class="filter-btn" onclick="setFilter('noop',this)">Noop</button>
+        </div>
+      </div>
+      <div id="event-list"></div>
+    </main>
+
+    <!-- ── Right: stats ── -->
+    <aside class="stats-panel">
+      <div class="stats-label">Stats — <span id="stats-agent-label" style="color:var(--red)">DCA-ALPHA</span></div>
+
+      <div class="stat-block">
+        <div class="stat-key">SOL Balance</div>
+        <div class="stat-value" id="stat-balance">—</div>
+        <div class="stat-sub" id="stat-balance-sub">fetching…</div>
+      </div>
+
+      <div class="stat-block">
+        <div class="stat-key">Ticks (session)</div>
+        <div class="stat-value" id="stat-ticks">0</div>
+        <div class="stat-sub" id="stat-ticks-sub">0 swaps · 0 noops</div>
+      </div>
+
+      <div class="stat-block">
+        <div class="stat-key">Last Action</div>
+        <div class="stat-value" id="stat-last-action" style="font-size:14px">—</div>
+        <div class="stat-sub" id="stat-last-time">—</div>
+      </div>
+
+      <div class="mini-chart">
+        <div class="chart-label">Actions / last 12 ticks</div>
+        <div class="bars" id="mini-bars"></div>
+      </div>
+
+      <div class="limit-block">
+        <div class="limit-key">Per-tx cap <span id="lim-pertx-val">0 / 0.1 SOL</span></div>
+        <div class="limit-track">
+          <div class="limit-fill safe" id="lim-pertx-bar" style="width:0%"></div>
+        </div>
+        <div class="limit-labels"><span>0</span><span>0.1 SOL</span></div>
+      </div>
+
+      <div class="limit-block">
+        <div class="limit-key">Session spend <span id="lim-session-val">0 / 1.0 SOL</span></div>
+        <div class="limit-track">
+          <div class="limit-fill safe" id="lim-session-bar" style="width:0%"></div>
+        </div>
+        <div class="limit-labels"><span>0</span><span>1.0 SOL</span></div>
+      </div>
+
+      <div class="stat-block">
+        <div class="stat-key">Errors (session)</div>
+        <div class="stat-value red" id="stat-errors">0</div>
+      </div>
+    </aside>
+  </div>
+
+  <!-- ── Footer ── -->
+  <div class="footer">
+    <div class="footer-item">Network <span>DEVNET</span></div>
+    <div class="footer-sep">·</div>
+    <div class="footer-item">RPC <span>api.devnet.solana.com</span></div>
+    <div class="footer-sep">·</div>
+    <div class="footer-item">Agents <span id="footer-agents">4</span></div>
+    <div class="footer-sep">·</div>
+    <div class="footer-item">Events <span id="footer-events">0</span></div>
+  </div>
+
+  <script>
+    // ── State ─────────────────────────────────────────────────────────────────────
+
+    let AGENTS = {};
+    let activeAgent = '';
+    let activeFilter = 'all';
+    let allEvents = {};         // { agentId: [{...}] }
+    let tickHistory = {};       // { agentId: [action string x12] }
+    let totalEvents = 0;
+
+    async function fetchData() {
+      try {
+        const [agentRes, eventRes] = await Promise.all([
+          fetch('/api/agents'),
+          fetch('/api/events')
+        ]);
+
+        if (!agentRes.ok || !eventRes.ok) throw new Error('Backend failed');
+
+        const agentsData = await agentRes.json();
+        const eventData = await eventRes.json();
+
+        AGENTS = agentsData;
+        allEvents = eventData.events;
+        tickHistory = eventData.tickHistory;
+        totalEvents = eventData.totalEvents;
+
+        // Default to first agent on cold boot 
+        if (!activeAgent && Object.keys(AGENTS).length > 0) {
+          selectAgentId(Object.keys(AGENTS)[0]);
+        }
+
+        renderSidebar();
+        if (activeAgent) {
+          renderFeed();
+          renderStats();
+          renderTickCounts();
+        }
+      } catch (err) {
+        console.error('API Error:', err);
+      }
+    }
+
+    // ── Clock ─────────────────────────────────────────────────────────────────────
+
+    function updateClock() {
+      const now = new Date();
+      const h = String(now.getUTCHours()).padStart(2, '0');
+      const m = String(now.getUTCMinutes()).padStart(2, '0');
+      const s = String(now.getUTCSeconds()).padStart(2, '0');
+      document.getElementById('clock').textContent = `${h}:${m}:${s} UTC`;
+    }
+    setInterval(updateClock, 1000);
+    updateClock();
+
+    // ── Helpers ───────────────────────────────────────────────────────────────────
+
+    function randSig() {
+      const chars = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+      return Array.from({ length: 64 }, () => chars[Math.floor(Math.random() * chars.length)]).join('').slice(0, 16) + '…';
+    }
+
+    function elapsed(ts) {
+      const s = Math.floor((Date.now() - ts) / 1000);
+      if (s < 60) return `${s}s ago`;
+      if (s < 3600) return `${Math.floor(s / 60)}m ago`;
+      return `${Math.floor(s / 3600)}h ago`;
+    }
+
+    function solFmt(n) {
+      return n.toFixed(4);
+    }
+
+    // ── Render ────────────────────────────────────────────────────────────────────
+
+    let lastFeedHtml = '';
+    function renderFeed() {
+      const list = document.getElementById('event-list');
+      const events = (allEvents[activeAgent] || [])
+        .filter(e =>
+          activeFilter === 'all' ||
+          e.tagClass === activeFilter ||
+          (activeFilter === 'swap' && (e.tagClass === 'confirmed' || e.tagClass === 'swap')) ||
+          (activeFilter === 'provide_liquidity' && (e.tagClass === 'confirmed' || e.tagClass === 'provide_liquidity'))
+        );
+
+      // Unique identifier for this specific set of events
+      const eventIds = events.map(e => e.id).join('|');
+
+      if (events.length === 0) {
+        list.innerHTML = '<div class="empty">No events</div>';
+        list.dataset.eventIds = '';
+        return;
+      }
+
+      // ONLY re-render full HTML if the underlying data objects changed
+      if (list.dataset.eventIds !== eventIds) {
+        const total = events.length;
+        list.innerHTML = events.map((e, idx) => `
+          <div class="event-row ${e.isNew ? 'new' : ''}" data-id="${e.id}" data-ts="${e.ts}">
+            <div class="col-tick">[${total - idx}]</div>
+            <div class="col-type"><span class="event-tag ${e.tagClass}">${e.label}</span></div>
+            <div class="col-detail">
+              <div class="detail-main">${e.main}</div>
+              ${e.meta ? `<div class="detail-meta">${e.meta}</div>` : ''}
+            </div>
+            <div class="col-time" data-time-update="true">${elapsed(e.ts)}</div>
+          </div>
+        `).join('');
+        list.dataset.eventIds = eventIds;
+      }
+    }
+
+    // Secondary timer to update "time ago" without glitching/re-rendering rows
+    setInterval(() => {
+      document.querySelectorAll('[data-time-update="true"]').forEach(el => {
+        const row = el.closest('.event-row');
+        if (row && row.dataset.ts) {
+          el.textContent = elapsed(parseInt(row.dataset.ts));
+        }
+      });
+    }, 1000);
+
+    function renderStats() {
+      const a = AGENTS[activeAgent];
+
+      document.getElementById('stat-balance').textContent = solFmt(a.balance) + ' SOL';
+      document.getElementById('stat-balance-sub').textContent = `wallet balance`;
+      document.getElementById('stat-ticks').textContent = a.ticks;
+      if (a.strategy === 'MARKET_MAKER') {
+        document.getElementById('stat-ticks-sub').textContent = `${a.swaps} swaps · ${a.lps} LPs · ${a.noops} noops`;
+      } else {
+        document.getElementById('stat-ticks-sub').textContent = `${a.swaps} swaps · ${a.noops} noops`;
+      }
+      document.getElementById('stat-errors').textContent = a.errors;
+
+      const lastEvents = (allEvents[activeAgent] || []);
+      if (lastEvents.length > 0) {
+        const last = lastEvents[lastEvents.length - 1];
+        document.getElementById('stat-last-action').textContent = last.label;
+        document.getElementById('stat-last-time').textContent = elapsed(last.ts);
+      }
+
+      // Mini bars
+      const hist = tickHistory[activeAgent] || [];
+      const bars = document.getElementById('mini-bars');
+      bars.innerHTML = hist.map((type, i) => {
+        const h = type === 'confirmed' ? '100%' : type === 'error' ? '60%' : '15%';
+        const cls = (type === 'confirmed' || type === 'swap') ? 'active' : '';
+        return `<div class="bar ${cls}" style="height:${h}" title="${type}"></div>`;
+      }).join('');
+
+      // Limit meters
+      const pct = Math.min((a.sessionSol / 0.1) * 100, 100);
+      const sPct = Math.min((a.sessionSol / 1.0) * 100, 100);
+
+      document.getElementById('lim-pertx-val').textContent = `active / 0.1 SOL`;
+      document.getElementById('lim-session-val').textContent = `${solFmt(a.sessionSol)} / 1.0 SOL`;
+
+      const pertxBar = document.getElementById('lim-pertx-bar');
+      pertxBar.style.width = `0%`;
+      pertxBar.className = 'limit-fill safe';
+
+      const sessBar = document.getElementById('lim-session-bar');
+      sessBar.style.width = sPct + '%';
+      sessBar.className = 'limit-fill ' + (sPct > 80 ? '' : 'safe');
+
+      document.getElementById('footer-events').textContent = totalEvents;
+    }
+
+    function renderTickCounts() {
+      for (const [id, a] of Object.entries(AGENTS)) {
+        const el = document.getElementById(`ticks-${id}`);
+        if (el) el.textContent = `tick ${a.ticks}`;
+      }
+    }
+
+    // ── Interactions ──────────────────────────────────────────────────────────────
+
+    function setFilter(type, el) {
+      document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+      el.classList.add('active');
+      activeFilter = type;
+      if (activeAgent) renderFeed();
+    }
+
+    function selectAgent(el) {
+      document.querySelectorAll('.agent-item').forEach(a => a.classList.remove('active'));
+      el.classList.add('active');
+      activeAgent = el.dataset.agent;
+
+      document.getElementById('feed-agent-label').textContent = activeAgent.toUpperCase();
+      document.getElementById('stats-agent-label').textContent = activeAgent.toUpperCase();
+
+      renderFeed();
+      renderStats();
+    }
+
+    // ── Layout Renderers ─────────────────────────────────────────────────────────
+
+    let lastSidebarHtml = '';
+    function renderSidebar() {
+      const sidebar = document.querySelector('.sidebar');
+      if (!sidebar) return;
+
+      // Keep the title node, wipe the agents
+      const titleNode = sidebar.querySelector('.sidebar-label');
+      const title = titleNode ? titleNode.outerHTML : '<div class="sidebar-label">Active Agents</div>';
+      let html = title;
+
+      for (const [id, a] of Object.entries(AGENTS)) {
+        const isActive = id === activeAgent ? 'active' : '';
+        const badgeClass = a.status === 'running' ? 'running' : 'stopped';
+        const badgeText = a.status === 'running' ? 'Running' : 'Stopped';
+
+        html += `
+      <div class="agent-item ${isActive}" data-agent="${id}" onclick="selectAgent(this)">
+        <div class="agent-name">${id.toUpperCase()}</div>
+        <div class="agent-strategy">${a.strategy}</div>
+        <div class="agent-pubkey">${a.pubkey.slice(0, 6)}...${a.pubkey.slice(-4)}</div>
+        <div class="agent-status-row">
+          <div class="status-badge ${badgeClass}">${badgeText}</div>
+          <div class="tick-count" id="ticks-${id}">tick ${a.ticks}</div>
+        </div>
+      </div>
+    `;
+      }
+
+      if (html !== lastSidebarHtml) {
+        sidebar.innerHTML = html;
+        lastSidebarHtml = html;
+      }
+
+      // also refresh footer agent count
+      const footerAgents = document.getElementById('footer-agents');
+      if (footerAgents) footerAgents.textContent = Object.keys(AGENTS).length;
+    }
+
+    function selectAgentId(id) {
+      activeAgent = id;
+      document.getElementById('feed-agent-label').textContent = activeAgent.toUpperCase();
+      document.getElementById('stats-agent-label').textContent = activeAgent.toUpperCase();
+      renderSidebar();
+    }
+
+    function selectAgent(el) {
+      selectAgentId(el.dataset.agent);
+    }
+
+    // ── Init ──────────────────────────────────────────────────────────────────────
+
+    fetchData();
+    setInterval(fetchData, 2000);
+
+    // Elapsed time refresh
+    setInterval(() => {
+      renderStats();
+    }, 15_000);
+  </script>
+</body>
+
+</html>

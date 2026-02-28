@@ -1,0 +1,20 @@
+[90m[[0m2026-02-27T22:37:01.316431000Z [32mINFO [0m solana_test_validator[90m][0m agave-validator 3.1.8 (src:428e4303; feat:1620780344, client:Agave)
+[90m[[0m2026-02-27T22:37:01.316485000Z [32mINFO [0m solana_test_validator[90m][0m Starting validator with: ArgsOs {
+        inner: [
+            "solana-test-validator",
+            "--url",
+            "https://mainnet.helius-rpc.com/?api-key=97cc9d6d-ca80-4e0e-879e-e7123441c6ad",
+            "--clone",
+            "JUP6LkbZbjS1jKKwapdH67y95861b58E7ZqEaPZ25gZ",
+            "--clone",
+            "whirLbMiicVdio4qvUfM5KAg6Ct8VwpYzGff3uctyCc",
+            "--reset",
+        ],
+    }
+[90m[[0m2026-02-27T22:37:01.316514000Z [33mWARN [0m solana_perf[90m][0m CUDA is disabled
+[90m[[0m2026-02-27T22:37:01.321118000Z [32mINFO [0m solana_perf[90m][0m AVX detected
+[90m[[0m2026-02-27T22:37:01.321149000Z [32mINFO [0m solana_perf[90m][0m AVX2 detected
+[90m[[0m2026-02-27T22:37:01.322103000Z [32mINFO [0m solana_faucet::faucet[90m][0m Faucet started. Listening on: 0.0.0.0:9900
+[90m[[0m2026-02-27T22:37:01.322126000Z [32mINFO [0m solana_faucet::faucet[90m][0m Faucet account address: HrtXQT7rhwZbkca5DpNH8WhxNrZDuXY4NLSA57jKU7op
+[90m[[0m2026-02-27T22:37:01.322443000Z [32mINFO [0m solana_test_validator[90m][0m Fetching [JUP6LkbZbjS1jKKwapdH67y95861b58E7ZqEaPZ25gZ, whirLbMiicVdio4qvUfM5KAg6Ct8VwpYzGff3uctyCc] over RPC...
+[90m[[0m2026-02-27T22:37:01.322659000Z [32mINFO [0m agave_validator::admin_rpc_service[90m][0m started admin rpc service!

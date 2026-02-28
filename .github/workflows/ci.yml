@@ -1,0 +1,76 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint-and-typecheck:
+    name: Lint & Typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    needs: lint-and-typecheck
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - run: npm run test:unit -- --coverage
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-report
+          path: coverage/
+
+  integration-tests:
+    name: Integration Tests (devnet)
+    runs-on: ubuntu-latest
+    needs: unit-tests
+    # Only run on PRs to main to avoid hammering devnet on every push
+    if: github.event_name == 'pull_request' && github.base_ref == 'main'
+    env:
+      SOLANA_RPC_URL: https://api.devnet.solana.com
+      SOLANA_NETWORK: devnet
+      NODE_ENV: test
+      LOG_LEVEL: warn
+      MAX_PER_TX_SOL: '0.01'
+      MAX_SESSION_SOL: '0.1'
+      # CI uses a pre-funded test wallet loaded from secret
+      WALLET_SECRET_KEY: ${{ secrets.CI_WALLET_SECRET_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - run: npm run test:integration
+        timeout-minutes: 5
+
+  audit:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - run: npm audit --audit-level=high

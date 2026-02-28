@@ -1,0 +1,75 @@
+{
+  "name": "molthold",
+  "version": "1.0.0",
+  "description": "Autonomous AI-agent wallet for Solana — Molthold",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "agentw": "./dist/cli/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
+    "lint:fix": "eslint \"src/**/*.ts\" \"test/**/*.ts\" --fix",
+    "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
+    "test": "vitest run",
+    "test:unit": "vitest run test/unit",
+    "test:integration": "vitest run test/integration",
+    "test:simulation": "vitest run test/simulation",
+    "test:coverage": "vitest run --coverage",
+    "test:watch": "vitest",
+    "dev": "tsx src/cli/index.ts",
+    "wallet": "tsx src/cli/index.ts wallet",
+    "agent": "tsx src/cli/index.ts agent",
+    "precommit": "npm run lint && npm run typecheck",
+    "test:protocols": "vitest run test/unit/protocols",
+    "fund": "tsx scripts/fund-agents.ts",
+    "test:agent": "vitest run test/unit/agent",
+    "start": "tsx src/cli/index.ts",
+    "test:cli:integ": "vitest run test/integration/cli",
+    "solana-fork": "solana-test-validator --url https://mainnet.helius-rpc.com/?api-key=97cc9d6d-ca80-4e0e-879e-e7123441c6ad --clone JUP6LkbZbjS1jKKwapdH67y95861b58E7ZqEaPZ25gZ --clone whirLbMiicVdio4qvUfM5KAg6Ct8VwpYzGff3uctyCc --reset"
+  },
+  "keywords": [
+    "solana",
+    "wallet",
+    "agent",
+    "defi",
+    "autonomous"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "dependencies": {
+    "@coral-xyz/anchor": "^0.29.0",
+    "@solana/spl-token": "0.4.9",
+    "@solana/web3.js": "1.95.8",
+    "@types/bn.js": "^5.2.0",
+    "@types/bs58": "^4.0.4",
+    "better-sqlite3": "11.7.0",
+    "bn.js": "^5.2.3",
+    "bs58": "^6.0.0",
+    "commander": "12.1.0",
+    "dotenv": "16.4.7",
+    "pino": "9.5.0",
+    "zod": "3.24.1"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "7.6.12",
+    "@types/node": "22.10.5",
+    "@typescript-eslint/eslint-plugin": "8.19.1",
+    "@typescript-eslint/parser": "8.19.1",
+    "@vitest/coverage-v8": "2.1.8",
+    "eslint": "9.17.0",
+    "prettier": "3.4.2",
+    "tsx": "4.19.2",
+    "typescript": "5.7.3",
+    "vitest": "2.1.8"
+  },
+  "optionalDependencies": {
+    "@orca-so/common-sdk": "npm:null@*",
+    "@orca-so/whirlpools-sdk": "^0.13.12",
+    "@project-serum/anchor": "0.26.0"
+  }
+}

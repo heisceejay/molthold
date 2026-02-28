@@ -1,0 +1,58 @@
+[
+  {
+    "id": "agent-1",
+    "keystorePath": "keystores/agent-1.keystore.json",
+    "strategy": "dca",
+    "strategyParams": {
+      "targetMint": "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU",
+      "amountPerTickLamports": 1000000,
+      "adapter": "jupiter"
+    },
+    "intervalMs": 5000,
+    "limits": {
+      "maxPerTxLamports": 20000000,
+      "maxSessionLamports": 100000000
+    }
+  },
+  {
+    "id": "agent-2",
+    "keystorePath": "keystores/agent-2.keystore.json",
+    "strategy": "monitor",
+    "strategyParams": {},
+    "intervalMs": 3000,
+    "limits": {
+      "maxPerTxLamports": 1000,
+      "maxSessionLamports": 5000
+    }
+  },
+  {
+    "id": "agent-3",
+    "keystorePath": "keystores/agent-3.keystore.json",
+    "strategy": "rebalancer",
+    "strategyParams": {
+      "targetMint": "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU",
+      "targetSolPct": 50,
+      "bandPct": 5
+    },
+    "intervalMs": 8000,
+    "limits": {
+      "maxPerTxLamports": 20000000,
+      "maxSessionLamports": 200000000
+    }
+  },
+  {
+    "id": "agent-4",
+    "keystorePath": "keystores/agent-4.keystore.json",
+    "strategy": "market_maker",
+    "strategyParams": {
+      "targetMint": "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU",
+      "amountSolLamports": 10000000,
+      "amountToken": 1000000
+    },
+    "intervalMs": 3000,
+    "limits": {
+      "maxPerTxLamports": 100000000,
+      "maxSessionLamports": 500000000
+    }
+  }
+]
