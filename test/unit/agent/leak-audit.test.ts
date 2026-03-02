@@ -118,7 +118,7 @@ describe('Secret leak audit (Phase 5.1)', () => {
             const Database = (await import('better-sqlite3')).default;
             const db = new Database(dbPath, { readonly: true });
             const rows = db.prepare('SELECT * FROM events').all() as any[];
-            expect(rows.length).toBe(3); // 3 ticks
+            expect(rows.length).toBe(6); // 3 ticks * 2 rows (attempt + confirmed)
 
             for (const row of rows) {
                 expect(row.details_json).not.toContain(actualSecretKeyBase58);

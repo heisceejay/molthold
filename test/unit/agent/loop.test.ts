@@ -98,12 +98,13 @@ const logger = createLogger({ level: 'error' }); // suppress output in tests
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 describe('AgentLoop — lifecycle', () => {
-  it('initial state is idle', () => {
+  it('initial state is idle', async () => {
     const { db, cleanup } = makeTmpDb();
     try {
       const loop = new AgentLoop(makeConfig(), makeWallet(), makeNoopStrategy(), makeAdapters(), logger, db);
-      expect(loop.getState().status).toBe('idle');
-      expect(loop.getState().tickCount).toBe(0);
+      const state = await loop.getState();
+      expect(state.status).toBe('idle');
+      expect(state.tickCount).toBe(0);
     } finally { cleanup(); }
   });
 
@@ -120,7 +121,7 @@ describe('AgentLoop — lifecycle', () => {
 
       await loop.start();
 
-      const state = loop.getState();
+      const state = await loop.getState();
       expect(state.status).toBe('stopped');
       expect(state.tickCount).toBeGreaterThanOrEqual(1);
     } finally { cleanup(); }
@@ -141,9 +142,10 @@ describe('AgentLoop — lifecycle', () => {
       await loop.start();
       const after = new Date();
 
-      expect(loop.getState().startedAt).not.toBeNull();
-      expect(loop.getState().startedAt!.getTime()).toBeGreaterThanOrEqual(before.getTime());
-      expect(loop.getState().startedAt!.getTime()).toBeLessThanOrEqual(after.getTime());
+      const state = await loop.getState();
+      expect(state.startedAt).not.toBeNull();
+      expect(state.startedAt!.getTime()).toBeGreaterThanOrEqual(before.getTime());
+      expect(state.startedAt!.getTime()).toBeLessThanOrEqual(after.getTime());
     } finally { cleanup(); }
   });
 
@@ -187,9 +189,10 @@ describe('AgentLoop — crash isolation', () => {
       await loop.start();
 
       expect(callCount).toBe(2);
-      expect(loop.getState().tickCount).toBe(2);
-      expect(loop.getState().lastError).toContain('Strategy exploded on tick 1');
-      expect(loop.getState().status).toBe('stopped');
+      const state = await loop.getState();
+      expect(state.tickCount).toBe(2);
+      expect(state.lastError).toContain('Strategy exploded on tick 1');
+      expect(state.status).toBe('stopped');
     } finally { cleanup(); }
   });
 
@@ -213,9 +216,10 @@ describe('AgentLoop — crash isolation', () => {
       await loop.start();
 
       expect(execCalls).toBe(1);
-      expect(loop.getState().status).toBe('stopped');
+      const state = await loop.getState();
+      expect(state.status).toBe('stopped');
       // Error was recorded but loop survived
-      expect(loop.getState().lastError).toContain('Execute blew up');
+      expect(state.lastError).toContain('Execute blew up');
     } finally { cleanup(); }
   });
 
@@ -265,7 +269,8 @@ describe('AgentLoop — crash isolation', () => {
       await loop.start();
 
       // tick 1 errored (RPC), tick 2 ran ok — loop survived both
-      expect(loop.getState().tickCount).toBe(2);
+      const state = await loop.getState();
+      expect(state.tickCount).toBe(2);
     } finally { cleanup(); }
   });
 });
@@ -360,9 +365,9 @@ describe('AgentLoop — swap ticks', () => {
       });
 
       const loop = new AgentLoop(makeConfig(), makeWallet(), strategy, adapters, logger, db);
-      expect(loop.getState().lastActionAt).toBeNull();
+      expect((await loop.getState()).lastActionAt).toBeNull();
       await loop.start();
-      expect(loop.getState().lastActionAt).not.toBeNull();
+      expect((await loop.getState()).lastActionAt).not.toBeNull();
     } finally { cleanup(); }
   });
 });

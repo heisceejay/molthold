@@ -58,7 +58,7 @@ function makeIsolatedWallet(): WalletClient {
     getSpendingLimitStatus: vi.fn().mockReturnValue({ sessionSpend: 0n, sessionCap: 500_000_000n, perTxCap: 100_000_000n }),
     toJSON: () => kp.publicKey.toBase58(),
     toString: () => kp.publicKey.toBase58(),
-  };
+  } as any;
 }
 
 function makeAdapters(agentId: string): AdapterRegistry {
@@ -92,7 +92,7 @@ function makeConfig(id: string, strategy: 'dca' | 'monitor'): AgentConfig {
  * Runs a loop for exactly `targetTicks` ticks then stops.
  * Returns a Promise that resolves when the loop is done.
  */
-function runNTicks(loop: AgentLoop, strategy: { decide: (...args: unknown[]) => Promise<unknown> }, targetTicks: number): Promise<void> {
+function runNTicks(loop: AgentLoop, strategy: any, targetTicks: number): Promise<void> {
   let ticksSeen = 0;
   const origDecide = strategy.decide.bind(strategy);
   vi.spyOn(strategy as any, 'decide').mockImplementation(async (...args: any[]) => {
@@ -149,14 +149,14 @@ describe('Multi-agent simulation — 3 agents × 5 ticks', () => {
     ]);
 
     // All 3 agents should have stopped cleanly
-    expect(loop1.getState().status).toBe('stopped');
-    expect(loop2.getState().status).toBe('stopped');
-    expect(loop3.getState().status).toBe('stopped');
+    expect((await loop1.getState()).status).toBe('stopped');
+    expect((await loop2.getState()).status).toBe('stopped');
+    expect((await loop3.getState()).status).toBe('stopped');
 
     // All 3 should have run 5 ticks
-    expect(loop1.getState().tickCount).toBe(5);
-    expect(loop2.getState().tickCount).toBe(5);
-    expect(loop3.getState().tickCount).toBe(5);
+    expect((await loop1.getState()).tickCount).toBe(5);
+    expect((await loop2.getState()).tickCount).toBe(5);
+    expect((await loop3.getState()).tickCount).toBe(5);
   }, 30_000);
 
   it('GATE: each agent\'s audit rows only reference its own wallet pubkey', async () => {
@@ -224,8 +224,8 @@ describe('Multi-agent simulation — 3 agents × 5 ticks', () => {
     ]);
 
     // Both should reach at least 4 ticks — agent-1's crash on tick 2 was isolated
-    expect(loop1.getState().tickCount).toBeGreaterThanOrEqual(4);
-    expect(loop2.getState().tickCount).toBeGreaterThanOrEqual(4);
+    expect((await loop1.getState()).tickCount).toBeGreaterThanOrEqual(4);
+    expect((await loop2.getState()).tickCount).toBeGreaterThanOrEqual(4);
 
     // agent-1 should have one agent_error row for the crash
     const errors = db.query({ agentId: 'agent-1', event: 'agent_error' });
