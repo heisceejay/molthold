@@ -43,7 +43,7 @@ export const dashboardCommand = new Command('dashboard')
         process.on('SIGTERM', () => { void shutdown('SIGTERM'); });
 
         // Mount HTTP Server
-        const server = http.createServer((req, res) => {
+        const server = http.createServer(async (req, res) => {
             // CORS for local development
             res.setHeader('Access-Control-Allow-Origin', '*');
 
@@ -62,9 +62,9 @@ export const dashboardCommand = new Command('dashboard')
                 return;
             }
 
-            if (req.method === 'GET' && req.url === '/api/agents') {
+            if (req.method === 'GET' && req.url?.startsWith('/api/agents')) {
                 const configs = loadAgentConfigs(opts.config);
-                const states = manager.getAgentStates();
+                const states = await manager.getAgentStates();
                 const auditDb = manager.getAuditDb();
 
                 // 1. Discovery phase: collect unique IDs from all sources
@@ -126,23 +126,22 @@ export const dashboardCommand = new Command('dashboard')
                     let isHeartbeatRunning = false;
 
                     try {
-                        // 1. Calculate counts
-                        const swaps = auditDb.query({
+                        const activity = auditDb.query({
                             agentId: agentId,
                             walletPk: currentPubkey,
-                            event: 'tx_attempt',
                             limit: 1000
                         });
-                        const successes = auditDb.query({
-                            agentId: agentId,
-                            walletPk: currentPubkey,
-                            event: 'tx_confirmed',
-                            limit: 1000
-                        });
-                        for (const row of successes) {
-                            if (row.details_json.includes('"provide_liquidity"')) lpCount++;
+                        for (const row of activity) {
+                            const isConfirmed = row.event === 'tx_confirmed' || row.event === 'agent_action';
+                            const isAttempt = row.event === 'tx_attempt';
+                            const isLP = row.details_json.includes('"provide_liquidity"');
+                            const isSwap = row.details_json.includes('"swap"');
+
+                            if (isConfirmed || isAttempt) {
+                                if (isLP) lpCount++;
+                                else if (isSwap || row.event.includes('tx')) swapCount++;
+                            }
                         }
-                        swapCount = swaps.length;
 
                         // 2. Fetch latest state from DB (Persistence)
                         const recentRows = auditDb.query({
@@ -167,14 +166,23 @@ export const dashboardCommand = new Command('dashboard')
                             }
 
                             const details = JSON.parse(latestRow.details_json);
-                            latestTick = details.tickCount ?? 0;
+                            latestTick = details.tick ?? details.tickCount ?? 0;
                             latestStrategy = details.strategy ? String(details.strategy).toUpperCase() : (config?.strategy.toUpperCase() ?? 'UNKNOWN');
+
+                            // Extract limits and last tx from DB if available
+                            if (details.sessionSpend !== undefined) {
+                                agentMap[agentId] = agentMap[agentId] || {};
+                                agentMap[agentId].sessionSol = Number(BigInt(details.sessionSpend)) / 1_000_000_000;
+                                agentMap[agentId].sessionCap = Number(BigInt(details.sessionCap)) / 1_000_000_000;
+                                agentMap[agentId].perTxCap = Number(BigInt(details.perTxCap)) / 1_000_000_000;
+                                agentMap[agentId].lastTxSol = details.lastTxAmount ? Number(BigInt(details.lastTxAmount)) / 1_000_000_000 : 0;
+                            }
 
                             if (latestRow.event !== 'agent_stop') {
                                 const rowTime = new Date(latestRow.ts).getTime();
                                 const now = Date.now();
                                 const interval = config?.intervalMs ?? 30000;
-                                const threshold = Math.max(30_000, interval * 2.5);
+                                const threshold = Math.max(60_000, interval * 4.0); // More tolerant threshold
                                 if ((now - rowTime) < threshold) {
                                     isHeartbeatRunning = true;
                                 }
@@ -184,15 +192,19 @@ export const dashboardCommand = new Command('dashboard')
 
                     const isRunning = (state !== undefined) || isHeartbeatRunning;
 
+                    const totalTicks = isRunning ? (state?.tickCount ?? latestTick) : latestTick;
                     agentMap[agentId] = {
                         strategy: state?.strategy.toUpperCase() ?? latestStrategy,
-                        ticks: isRunning ? (state?.tickCount ?? latestTick) : 0,
-                        swaps: isRunning ? swapCount : 0,
-                        lps: isRunning ? lpCount : 0,
-                        noops: isRunning ? (state?.tickCount ?? latestTick) : 0,
-                        errors: isRunning ? errorCount : 0,
-                        sessionSol: 0,
-                        balance: latestSolBalance,
+                        ticks: totalTicks,
+                        swaps: swapCount,
+                        lps: lpCount,
+                        noops: Math.max(0, totalTicks - swapCount - lpCount),
+                        errors: errorCount,
+                        sessionSol: state ? Number(state.sessionSpend) / 1_000_000_000 : (agentMap[agentId]?.sessionSol ?? 0),
+                        sessionCap: state ? Number(state.sessionCap) / 1_000_000_000 : (agentMap[agentId]?.sessionCap ?? (Number(config?.limits.maxSessionLamports ?? 0n) / 1_000_000_000 || 1.0)),
+                        perTxCap: state ? Number(state.perTxCap) / 1_000_000_000 : (agentMap[agentId]?.perTxCap ?? (Number(config?.limits.maxPerTxLamports ?? 0n) / 1_000_000_000 || 0.1)),
+                        lastTxSol: state ? Number(state.lastTxAmount) / 1_000_000_000 : (agentMap[agentId]?.lastTxSol ?? 0),
+                        balance: state ? Number(state.solBalance) / 1_000_000_000 : latestSolBalance,
                         pubkey: state?.walletPubkey ?? latestPubkey,
                         status: isRunning ? 'running' : 'stopped'
                     };
@@ -203,13 +215,13 @@ export const dashboardCommand = new Command('dashboard')
                 return;
             }
 
-            if (req.method === 'GET' && req.url === '/api/events') {
+            if (req.method === 'GET' && req.url?.startsWith('/api/events')) {
                 const configs = loadAgentConfigs(opts.config);
                 // Return 100 most recent events across all agents
                 try {
                     const auditDb = manager.getAuditDb();
 
-                    const states = manager.getAgentStates() as AgentLoopState[];
+                    const states = (await manager.getAgentStates()) as AgentLoopState[];
                     const keystoresDir = path.resolve(process.cwd(), 'keystores');
 
                     // Group by agent ID as expected by `allEvents`
@@ -260,32 +272,36 @@ export const dashboardCommand = new Command('dashboard')
                             limit: 50
                         });
 
-                        for (const row of agentRows) {
+                        // Process in chronological order to build history correctly
+                        const chronological = [...agentRows].reverse();
+
+                        for (const row of chronological) {
                             let details: any = {};
                             try {
                                 details = JSON.parse(row.details_json);
                             } catch (e) { }
 
                             const isLP = details.action === 'provide_liquidity' || row.event.includes('lp');
-                            const isSwap = details.action === 'swap' || row.event.includes('swap') || row.event === 'tx_attempt' || row.event === 'tx_confirmed';
+                            const isSwap = details.action === 'swap' || row.event.includes('swap');
 
                             let tagClass = 'noop';
                             if (row.event.includes('error') || row.event.includes('fail') || row.event === 'limit_breach') {
                                 tagClass = 'error';
                             } else if (row.event === 'tx_confirmed' || row.event === 'agent_action') {
                                 tagClass = isLP ? 'provide_liquidity' : 'confirmed';
-                            } else if (row.event === 'tx_attempt' || isSwap) {
+                            } else if (row.event === 'tx_attempt') {
                                 tagClass = isLP ? 'provide_liquidity' : 'swap';
                             }
 
                             const evt = {
                                 id: `${row.ts}-${row.agent_id}-${row.signature || 'no-sig'}`,
-                                tick: details.tickCount ?? 0,
+                                tick: details.tick ?? details.tickCount ?? 0,
                                 type: row.event,
                                 tagClass,
                                 label: row.event.toUpperCase(),
                                 main: details.message ?? row.event,
                                 meta: row.signature ? `sig: ${row.signature.slice(0, 16)}…` : '',
+                                fullSig: row.signature || '',
                                 ts: new Date(row.ts).getTime(),
                                 agentId: row.agent_id,
                                 isNew: false
@@ -295,6 +311,11 @@ export const dashboardCommand = new Command('dashboard')
                             tickHistoryMap[agentId] = [...tickHistoryMap[agentId]!.slice(1), tagClass];
                             totalEvents++;
                         }
+                    }
+
+                    // Return events in newest-first order for the feed UI
+                    for (const agentId of Object.keys(eventsMap)) {
+                        eventsMap[agentId]!.reverse();
                     }
 
                     // Ensure events are strictly sorted descending by timestamp before reaching the UI mapping loop

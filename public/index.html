@@ -617,6 +617,46 @@
       color: var(--muted);
     }
 
+    .sig-full {
+      display: none;
+      word-break: break-all;
+      background: rgba(255, 255, 255, 0.03);
+      padding: 4px 8px;
+      border-radius: 4px;
+      margin-top: 4px;
+      font-size: 10px;
+      font-family: var(--font-mono);
+      border-left: 2px solid var(--primary);
+      color: var(--dim);
+    }
+
+    .sig-full.visible {
+      display: block;
+    }
+
+    .explorer-link {
+      color: var(--dim);
+      text-decoration: none;
+      opacity: 0.5;
+      transition: opacity 0.2s;
+      display: inline-flex;
+      align-items: center;
+      margin-left: 8px;
+    }
+
+    .explorer-link:hover {
+      opacity: 1;
+      color: var(--primary);
+    }
+
+    .detail-meta {
+      cursor: pointer;
+    }
+
+    .detail-meta:hover {
+      color: var(--primary);
+    }
+
     /* ── Scrollbar ─── */
     ::-webkit-scrollbar {
       width: 3px;
@@ -871,7 +911,15 @@
             <div class="col-type"><span class="event-tag ${e.tagClass}">${e.label}</span></div>
             <div class="col-detail">
               <div class="detail-main">${e.main}</div>
-              ${e.meta ? `<div class="detail-meta">${e.meta}</div>` : ''}
+              ${e.fullSig ? `
+                <div class="detail-meta" onclick="toggleSig('${e.id}')">
+                  <span>${e.meta}</span>
+                  <a href="https://explorer.solana.com/tx/${e.fullSig}?cluster=devnet" target="_blank" class="explorer-link" onclick="event.stopPropagation()">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+                  </a>
+                </div>
+                <div id="sig-${e.id}" class="sig-full">${e.fullSig}</div>
+              ` : (e.meta ? `<div class="detail-meta">${e.meta}</div>` : '')}
             </div>
             <div class="col-time" data-time-update="true">${elapsed(e.ts)}</div>
           </div>
@@ -905,7 +953,7 @@
 
       const lastEvents = (allEvents[activeAgent] || []);
       if (lastEvents.length > 0) {
-        const last = lastEvents[lastEvents.length - 1];
+        const last = lastEvents[0];
         document.getElementById('stat-last-action').textContent = last.label;
         document.getElementById('stat-last-time').textContent = elapsed(last.ts);
       }
@@ -914,21 +962,24 @@
       const hist = tickHistory[activeAgent] || [];
       const bars = document.getElementById('mini-bars');
       bars.innerHTML = hist.map((type, i) => {
-        const h = type === 'confirmed' ? '100%' : type === 'error' ? '60%' : '15%';
-        const cls = (type === 'confirmed' || type === 'swap') ? 'active' : '';
+        const isAction = type === 'confirmed' || type === 'swap' || type === 'provide_liquidity';
+        const h = isAction ? '100%' : type === 'error' ? '60%' : '15%';
+        const cls = isAction ? 'active' : '';
         return `<div class="bar ${cls}" style="height:${h}" title="${type}"></div>`;
       }).join('');
 
       // Limit meters
-      const pct = Math.min((a.sessionSol / 0.1) * 100, 100);
-      const sPct = Math.min((a.sessionSol / 1.0) * 100, 100);
+      const pCap = a.perTxCap || 0.1;
+      const sCap = a.sessionCap || 1.0;
+      const pct = Math.min(((a.lastTxSol || 0) / pCap) * 100, 100);
+      const sPct = Math.min((a.sessionSol / sCap) * 100, 100);
 
-      document.getElementById('lim-pertx-val').textContent = `active / 0.1 SOL`;
-      document.getElementById('lim-session-val').textContent = `${solFmt(a.sessionSol)} / 1.0 SOL`;
+      document.getElementById('lim-pertx-val').textContent = `${solFmt(a.lastTxSol || 0)} / ${solFmt(pCap)} SOL`;
+      document.getElementById('lim-session-val').textContent = `${solFmt(a.sessionSol)} / ${solFmt(sCap)} SOL`;
 
       const pertxBar = document.getElementById('lim-pertx-bar');
-      pertxBar.style.width = `0%`;
-      pertxBar.className = 'limit-fill safe';
+      pertxBar.style.width = pct + '%';
+      pertxBar.className = 'limit-fill ' + (pct > 80 ? '' : 'safe');
 
       const sessBar = document.getElementById('lim-session-bar');
       sessBar.style.width = sPct + '%';
@@ -1014,6 +1065,11 @@
 
     function selectAgent(el) {
       selectAgentId(el.dataset.agent);
+    }
+
+    function toggleSig(id) {
+      const el = document.getElementById(`sig-${id}`);
+      if (el) el.classList.toggle('visible');
     }
 
     // ── Init ──────────────────────────────────────────────────────────────────────

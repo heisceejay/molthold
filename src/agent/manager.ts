@@ -135,12 +135,12 @@ export class MultiAgentManager {
   // ── Observability ───────────────────────────────────────────────────────────
 
   /** Returns the current state of all agent loops. */
-  getAgentStates(): AgentLoopState[] {
-    return Array.from(this.loops.values()).map((loop) => loop.getState());
+  async getAgentStates(): Promise<AgentLoopState[]> {
+    return Promise.all(Array.from(this.loops.values()).map((loop) => loop.getState()));
   }
 
   /** Returns the state of a single agent by ID. */
-  getAgentState(agentId: string): AgentLoopState | undefined {
+  async getAgentState(agentId: string): Promise<AgentLoopState | undefined> {
     return this.loops.get(agentId)?.getState();
   }
 

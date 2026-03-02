@@ -149,8 +149,8 @@ const startCmd = new Command('start')
     // manager.start() returns immediately — process stays alive via signal handlers
     // Print periodic status every 30s if stdout is not a TTY (CI/log-redirect mode)
     if (!process.stdout.isTTY) {
-      setInterval(() => {
-        const states = manager.getAgentStates();
+      setInterval(async () => {
+        const states = await manager.getAgentStates();
         for (const s of states) {
           logger.info({
             agentId: s.agentId,

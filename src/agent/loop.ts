@@ -37,6 +37,7 @@ export class AgentLoop {
   private lastActionAt: Date | null = null;
   private lastError: string | null = null;
   private startedAt: Date | null = null;
+  private lastTxAmount: bigint = 0n;
   private status: 'idle' | 'running' | 'stopped' | 'error' = 'idle';
 
   constructor(
@@ -105,7 +106,10 @@ export class AgentLoop {
   }
 
   /** Returns a snapshot of the agent's current observable state. */
-  getState(): AgentLoopState {
+  async getState(): Promise<AgentLoopState> {
+    const limits = this.wallet.getSpendingLimitStatus();
+    const solBalance = await this.wallet.getSolBalance();
+
     return {
       agentId: this.config.id,
       status: this.status,
@@ -116,6 +120,11 @@ export class AgentLoop {
       lastActionAt: this.lastActionAt,
       lastError: this.lastError,
       startedAt: this.startedAt,
+      sessionSpend: limits.sessionSpend,
+      sessionCap: limits.sessionCap,
+      perTxCap: limits.perTxCap,
+      solBalance,
+      lastTxAmount: this.lastTxAmount,
     };
   }
 
@@ -156,6 +165,7 @@ export class AgentLoop {
       if (signalTime > (loopStartTime - 2000)) {
         this.logger.warn({ agentId: this.config.id, signalTime, loopStartTime }, 'Received valid stop signal — shutting down');
         this.status = 'stopped';
+        this.stopped = true; // Actually exit the while(!this.stopped) loop
         this.auditDb.log(this.config.id, this.wallet.publicKey.toBase58(), 'agent_stop', {
           reason: 'Remote stop signal received',
           signalId: recentStopSignal.id,
@@ -189,6 +199,7 @@ export class AgentLoop {
             strategy: this.config.strategy,
             rationale: action.rationale,
             solBalance: state.solBalance.toString(),
+            ...this.getAuditLimitFields(0n),
           },
         );
         return;
@@ -206,7 +217,25 @@ export class AgentLoop {
         'Tick: executing action',
       );
 
+      // HEARTBEAT: Log attempt BEFORE execute (which can take a long time to confirm)
+      // This keeps the dashboard status 'running' by providing a fresh heartbeat.
+      this.auditDb.log(
+        this.config.id,
+        this.wallet.publicKey.toBase58(),
+        'tx_attempt',
+        {
+          tick: this.tickCount,
+          strategy: this.config.strategy,
+          action: action.type,
+          solBalance: state.solBalance.toString(),
+          ...this.getAuditLimitFields(0n),
+        }
+      );
+
       const result = await this.strategy.execute(action, this.wallet, this.adapters);
+
+      // BALANCE ACCURACY: Re-fetch balance AFTER transaction confirms
+      const postTxBalance = await this.wallet.getSolBalance();
       this.lastActionAt = new Date();
 
       // 5. Audit the result
@@ -228,7 +257,8 @@ export class AgentLoop {
           action: action.type,
           rationale: action.rationale,
           params: sanitiseParams(action.params),
-          solBalance: state.solBalance.toString(),
+          solBalance: postTxBalance.toString(), // Use the fresh balance
+          ...this.getAuditLimitFields(action.type === 'swap' ? (action.params['amountIn'] as bigint) : action.type === 'transfer' ? (action.params['lamports'] as bigint) : 0n),
         },
         result
           ? { signature: result.signature, status: result.status }
@@ -242,6 +272,7 @@ export class AgentLoop {
           action: action.type,
           status: result?.status,
           signature: result?.signature,
+          balance: postTxBalance.toString(),
         },
         'Tick: action complete',
       );
@@ -270,6 +301,7 @@ export class AgentLoop {
           error: errMsg,
           code: errCode ?? null,
           solBalance: state ? state.solBalance.toString() : null,
+          ...this.getAuditLimitFields(0n),
         },
       );
     }
@@ -328,6 +360,16 @@ export class AgentLoop {
     }
 
     return mints;
+  }
+
+  private getAuditLimitFields(lastTxAmount: bigint): Record<string, string> {
+    const limits = this.wallet.getSpendingLimitStatus();
+    return {
+      sessionSpend: limits.sessionSpend.toString(),
+      sessionCap: limits.sessionCap.toString(),
+      perTxCap: limits.perTxCap.toString(),
+      lastTxAmount: lastTxAmount.toString(),
+    };
   }
 }
 

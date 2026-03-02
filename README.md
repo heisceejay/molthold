@@ -21,7 +21,7 @@ An autonomous, programmable wallet for AI agents operating on Solana devnet. Age
 ```bash
 cp .env.example .env
 # Edit .env — at minimum, the defaults work for devnet or local testnet
-# Be sure to set a secure WALLET_PASSWORD for the keystore.
+# Be sure to set a secure string for WALLET_PASSWORD for the keystore.
 ```
 
 ### 2. Create your first agent wallet

@@ -134,4 +134,9 @@ export interface AgentLoopState {
   lastActionAt: Date | null;
   lastError: string | null;
   startedAt: Date | null;
+  sessionSpend: bigint;
+  sessionCap: bigint;
+  perTxCap: bigint;
+  solBalance: bigint;
+  lastTxAmount: bigint;
 }
