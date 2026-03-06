@@ -1,16 +1,17 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { Keypair } from '@solana/web3.js';
 import { AgentLoop } from '../../../src/agent/loop.js';
-import { DcaStrategy } from '../../../src/agent/strategies/dca.js';
+import { UniversalStrategy } from '../../../src/agent/strategies/universal.js';
 import { AuditDb } from '../../../src/logger/audit.js';
 import pino from 'pino';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { Writable } from 'node:stream';
+import type { AgentConfig } from '../../../src/agent/types.js';
 
 describe('Secret leak audit (Phase 5.1)', () => {
-    it('GATE: runs DCA agent for 3 ticks and never leaks private key in logs or audit DB', async () => {
+    it('GATE: runs agent for 3 ticks and never leaks private key in logs or audit DB', async () => {
         const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'molthold-leak-test-'));
         try {
             const dbPath = path.join(tmpDir, 'audit.db');
@@ -24,7 +25,6 @@ describe('Secret leak audit (Phase 5.1)', () => {
                     cb();
                 }
             });
-            // We explicitly pass the stream to a new pino instance, mimicking createLogger's redacts
             const logger = pino({
                 level: 'trace',
                 redact: {
@@ -38,8 +38,6 @@ describe('Secret leak audit (Phase 5.1)', () => {
 
             // 2. Setup wallet with a known secret key
             const keypair = Keypair.generate();
-            const secretKeyBase58 = Math.random().toString() + Date.now().toString(); // Use a dummy string we can easily grep for
-            // To really test base58 leak, we check for the actual base58 of the generated key
             const bs58 = await import('bs58');
             const actualSecretKeyBase58 = bs58.default.encode(keypair.secretKey);
 
@@ -49,17 +47,39 @@ describe('Secret leak audit (Phase 5.1)', () => {
                 { rpcUrl: 'http://localhost', limits: { maxPerTxLamports: 100000000n, maxSessionLamports: 100000000n }, simulateBeforeSend: false, confirmationStrategy: 'confirmed', maxRetries: 0, retryDelayMs: 0 },
                 logger
             );
-            // Mock network reads
-            wallet.getSolBalance = async () => 500_000_000n; // 0.5 SOL
+            wallet.getSolBalance = async () => 500_000_000n;
             wallet.getTokenBalance = async () => 0n;
 
-            // 3. Setup DCA strategy
-            const strategy = new DcaStrategy({
-                targetMint: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v', // USDC
-                amountPerTickLamports: '10000000', // 0.01 SOL
-                minSolReserveLamports: '50000000',
-                adapter: 'best'
+            // 3. Setup Universal strategy
+            const { LLMDecider } = await import('../../../src/agent/strategies/llm.js');
+            const llmDecider = new LLMDecider({
+                maxPerTxLamports: 100000000n,
+                maxSessionLamports: 100000000n
             });
+            const strategy = new UniversalStrategy(llmDecider, 'http://localhost');
+
+            // 3.1 Mock fetch for LLMDecider
+            process.env['OPENROUTER_API_KEY'] = 'test-key';
+            vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+                ok: true,
+                json: async () => ({
+                    choices: [{
+                        message: {
+                            content: JSON.stringify({
+                                type: 'swap',
+                                params: {
+                                    inputMint: 'So11111111111111111111111111111111111111112',
+                                    outputMint: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
+                                    amountIn: '10000000',
+                                    slippageBps: 100,
+                                    adapter: 'best'
+                                },
+                                rationale: 'Testing leak'
+                            })
+                        }
+                    }]
+                })
+            }));
 
             // Mock adapters to avoid real network calls
             const mockAdapter = {
@@ -86,11 +106,20 @@ describe('Secret leak audit (Phase 5.1)', () => {
             };
             const adapters = new Map([['best', mockAdapter]]) as any;
 
-            // Force logger to try to log the wallet object (which contains the keypair if not careful)
             logger.info({ wallet, keypair }, 'Deliberate test log of sensitive objects');
 
+            const config: AgentConfig = {
+                id: 'audit-agent',
+                keystorePath: 'unused',
+                intervalMs: 1,
+                limits: {
+                    maxPerTxLamports: 100_000_000n,
+                    maxSessionLamports: 1_000_000_000n,
+                },
+            };
+
             const loop = new AgentLoop(
-                { id: 'leak-test-agent', strategy: 'dca', intervalMs: 100, strategyParams: {}, keystorePath: '', limits: { maxPerTxLamports: 0n, maxSessionLamports: 0n } },
+                config,
                 wallet as any,
                 strategy,
                 adapters,
@@ -98,27 +127,21 @@ describe('Secret leak audit (Phase 5.1)', () => {
                 auditDb
             );
 
-            // 4. Run exactly 3 ticks
-            // Call the private `tick()` method via any
             for (let i = 0; i < 3; i++) {
                 await (loop as any).tick();
             }
 
             auditDb.close();
 
-            // 5. Assertions
-
-            // Check log lines
             expect(logLines.length).toBeGreaterThan(0);
             for (const line of logLines) {
                 expect(line).not.toContain(actualSecretKeyBase58);
             }
 
-            // Check audit DB
             const Database = (await import('better-sqlite3')).default;
             const db = new Database(dbPath, { readonly: true });
             const rows = db.prepare('SELECT * FROM events').all() as any[];
-            expect(rows.length).toBe(6); // 3 ticks * 2 rows (attempt + confirmed)
+            expect(rows.length).toBe(6);
 
             for (const row of rows) {
                 expect(row.details_json).not.toContain(actualSecretKeyBase58);
@@ -127,6 +150,7 @@ describe('Secret leak audit (Phase 5.1)', () => {
             db.close();
 
         } finally {
+            vi.unstubAllGlobals();
             fs.rmSync(tmpDir, { recursive: true, force: true });
         }
     });

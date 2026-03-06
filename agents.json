@@ -1,14 +1,8 @@
 [
   {
-    "id": "basic",
-    "keystorePath": "keystores/basic.keystore.json",
-    "strategy": "dca",
-    "strategyParams": {
-      "targetMint": "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU",
-      "amountPerTickLamports": 1000000,
-      "adapter": "jupiter"
-    },
-    "intervalMs": 30000,
+    "id": "claw",
+    "keystorePath": "keystores/claw.keystore.json",
+    "intervalMs": 5000,
     "limits": {
       "maxPerTxLamports": 100000000,
       "maxSessionLamports": 1000000000

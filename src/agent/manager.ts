@@ -90,7 +90,7 @@ export class MultiAgentManager {
         createAgentLogger(this.logger, config.id, keypair.publicKey.toBase58()),
       );
 
-      const strategy = createStrategy(config.strategy, config.strategyParams, this.rpcUrl);
+      const strategy = createStrategy(this.rpcUrl);
 
       const loop = new AgentLoop(
         config,
@@ -110,7 +110,7 @@ export class MultiAgentManager {
       });
 
       this.loopTasks.push(task);
-      agentLogger.info({ agentId: config.id, strategy: config.strategy }, 'Agent loop launched');
+      agentLogger.info({ agentId: config.id }, 'Agent loop launched');
     }
   }
 
@@ -180,8 +180,6 @@ import { z } from 'zod';
 const agentConfigSchema = z.object({
   id: z.string().min(1),
   keystorePath: z.string().min(1),
-  strategy: z.enum(['dca', 'rebalancer', 'monitor', 'market_maker']),
-  strategyParams: z.record(z.unknown()),
   intervalMs: z.number().positive(),
   limits: z.object({
     maxPerTxSol: z.number().positive().optional(),

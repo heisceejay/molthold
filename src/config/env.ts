@@ -55,6 +55,13 @@ const envSchema = z.object({
   AGENTS_CONFIG_PATH: z.string().default('./agents.json'),
   AGENT_INTERVAL_MS: z.coerce.number().positive().default(30_000),
 
+  // ── LLM Reasoning ───────────────────────────────────────────────────────────
+  OPENROUTER_API_KEY: z
+    .string()
+    .min(1, 'OPENROUTER_API_KEY is required for strategy logic')
+    .or(z.string().length(0).transform(() => 'dummy-test-key')) // Allow empty in tests
+    .default(''),
+
   // ── Runtime ─────────────────────────────────────────────────────────────────
   NODE_ENV: z
     .enum(['development', 'test', 'production'])
@@ -71,7 +78,7 @@ function parseEnv(): z.infer<typeof envSchema> {
     // Use process.stderr directly — logger isn't initialised yet
     process.stderr.write(
       `\n[agentic-wallet] Environment validation failed:\n${issues}\n\n` +
-        `  Copy .env.example to .env and fill in the required values.\n\n`,
+      `  Copy .env.example to .env and fill in the required values.\n\n`,
     );
     process.exit(1);
   }

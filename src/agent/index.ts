@@ -5,7 +5,7 @@
 
 export { AgentLoop } from './loop.js';
 export { MultiAgentManager, loadAgentConfigs } from './manager.js';
-export { createStrategy, DcaStrategy, RebalancerStrategy, MonitorStrategy } from './strategies/index.js';
+export { createStrategy, UniversalStrategy } from './strategies/index.js';
 export type {
   AgentConfig,
   AgentState,
@@ -13,7 +13,6 @@ export type {
   AgentLoopStatus,
   Action,
   Strategy,
-  StrategyName,
   SwapActionParams,
   TransferActionParams,
 } from './types.js';

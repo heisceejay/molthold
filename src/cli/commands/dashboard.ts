@@ -109,13 +109,12 @@ export const dashboardCommand = new Command('dashboard')
                         // Count errors by doing a quick group query on the DB
                         let errorCount = 0;
                         try {
-                            const errors = auditDb.query({
-                                agentId: agentId,
-                                walletPk: currentPubkey,
-                                event: 'agent_error',
-                                limit: 1000
-                            });
-                            errorCount = errors.length;
+                            const errorEvents = ['agent_error', 'limit_breach', 'tx_failed', 'tx_timeout'];
+                            let totalErrors = 0;
+                            for (const event of errorEvents) {
+                                totalErrors += auditDb.count(agentId, currentPubkey, event as any);
+                            }
+                            errorCount = totalErrors;
                         } catch (e) { }
 
                         let swapCount = 0;
@@ -123,7 +122,7 @@ export const dashboardCommand = new Command('dashboard')
                         let latestSolBalance = 0;
                         let latestPubkey = currentPubkey;
                         let latestTick = 0;
-                        let latestStrategy = config?.strategy.toUpperCase() ?? 'UNKNOWN';
+                        let latestStrategy = 'AI';
                         let isHeartbeatRunning = false;
 
                         try {
@@ -163,12 +162,15 @@ export const dashboardCommand = new Command('dashboard')
 
                                 if (firstWithBalance) {
                                     const details = JSON.parse(firstWithBalance.details_json);
-                                    latestSolBalance = Number(BigInt(details.solBalance)) / 1_000_000_000;
+                                    const rawBalance = details.solBalance ?? details.balance;
+                                    if (rawBalance !== undefined) {
+                                        latestSolBalance = Number(BigInt(rawBalance)) / 1_000_000_000;
+                                    }
                                 }
 
                                 const details = JSON.parse(latestRow.details_json);
                                 latestTick = details.tick ?? details.tickCount ?? 0;
-                                latestStrategy = details.strategy ? String(details.strategy).toUpperCase() : (config?.strategy.toUpperCase() ?? 'UNKNOWN');
+                                latestStrategy = 'AI';
 
                                 // Extract limits and last tx from DB if available
                                 if (details.sessionSpend !== undefined) {
@@ -195,7 +197,7 @@ export const dashboardCommand = new Command('dashboard')
 
                         const totalTicks = isRunning ? (state?.tickCount ?? latestTick) : latestTick;
                         agentMap[agentId] = {
-                            strategy: state?.strategy.toUpperCase() ?? latestStrategy,
+                            strategy: 'AI',
                             ticks: totalTicks,
                             swaps: swapCount,
                             lps: lpCount,

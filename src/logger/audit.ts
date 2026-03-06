@@ -197,13 +197,14 @@ export class AuditDb {
       .all() as Array<{ agent_id: string; event: string; count: number }>;
   }
 
-  /** Total event count — useful for assertions in tests. */
-  count(agentId?: string, walletPk?: string): number {
+  /** Total event count — useful for assertions in tests and dashboard summaries. */
+  count(agentId?: string, walletPk?: string, event?: AuditEventType): number {
     const conditions: string[] = [];
     const params: any[] = [];
 
     if (agentId) { conditions.push('agent_id = ?'); params.push(agentId); }
     if (walletPk) { conditions.push('wallet_pk = ?'); params.push(walletPk); }
+    if (event) { conditions.push('event = ?'); params.push(event); }
 
     const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
     const sql = `SELECT COUNT(*) as n FROM events ${where}`;

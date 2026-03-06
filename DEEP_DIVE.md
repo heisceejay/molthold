@@ -18,12 +18,14 @@ The system enforces defense-in-depth through three distinct, stacked layers:
 While these structures entirely protect against API compromises, file exfiltration, agent instruction hijacking, and excessive drain attacks, **it does not protect against physical host takeover**. If a malicious actor possesses the user's `$WALLET_PASSWORD` environment variable and host machine access, decryption is trivial via the CLI helper `npx tsx src/cli/index.ts`. 
 
 ## 3. AI Agent Interaction Model
-The underlying AI agents interact with the `Molthold` system strictly via the `Strategy` interface (`src/agent/types.ts`). By formalizing the interactions, the agent ecosystem is completely decoupled from the Blockchain specifics. The agent only expects three primitive properties to construct its loop:
-1. `name`: Its semantic identifier.
-2. `decide(state)`: An async function that receives the pruned Blockchain State (Agent balances) from the Manager and returns an explicit intention (`Action`).
-3. `execute(action, ...)`: An async function that fulfills the action generated in Step 2.
+The underlying AI agents interact with the `Molthold` system strictly via the `Strategy` interface (`src/agent/types.ts`). In the current version, this has been simplified into a single **Universal Strategy** powered by an LLM reasoning core (**Claude 3 Haiku** via OpenRouter).
 
-This agnostic interface implies that while `dca`, `rebalancer`, and `market_maker` happen to be rigid typescript-encoded algorithms locally executing token swaps and liquidity provisions on Jupiter and Orca, a developer reading the `SKILLS.md` manifest can instantiate an LLM API inside `decide` that makes decisions using ChatGPT/Anthropic instead of rules. Molthold allows agent abstraction models to run unhindered via the Manager `run` loop without interfering.
+The agent loop works in three primitive phases:
+1. **Gather**: The system snapshots the on-chain state (SOL/token balances).
+2. **Decide**: The state is serialized and sent to the LLM. The LLM evaluates the state against its internal models for DCA, Rebalancing, or Liquidity Provision and returns an explicit intention (`Action`).
+3. **Execute**: The `UniversalStrategy` fulfills the action, routing through the appropriate protocol adapters (Jupiter for swaps, Orca for liquidity).
+
+This architecture allows the agent to be truly autonomous — it doesn't just follow a fixed script; it reacts to market conditions and portfolio state with high-level reasoning.
 
 ## 4. Devnet/LocalNet Demo Walkthrough
 With `molthold`, standing up autonomous agent operations is a multi-step orchestration heavily reliant on the CLI interface natively provided.
@@ -46,10 +48,10 @@ With the environment provisioned, you define the constraints internally inside `
   {
     "id": "agent-1",
     "keystorePath": "keystores/agent-1.keystore.json",
-    "strategy": "dca",
-    "strategyParams": {
-      "targetMint": "89umwgTLvF4kPAUH5dWubTzHyFRf6ewEe7gUKbPemj1K",
-      // Swap sizes and destinations
+    "intervalMs": 5000,
+    "limits": {
+      "maxPerTxSol": 0.5,
+      "maxSessionSol": 2.0
     }
   }
 ]
@@ -63,29 +65,17 @@ npx tsx src/cli/index.ts agent log --name agent-1 --last 5
 
 ---
 
-## 5. Core Strategies
-The Molthold ecosystem ships with four reference strategy implementations, each demonstrating a unique aspect of autonomous DeFi interaction.
+## 5. Universal Reasoning Capabilities
+Instead of fixed strategies, the Molthold agent employs a comprehensive reasoning framework that allows it to perform multiple DeFi tasks dynamically.
 
-### DCA (Dollar Cost Averaging)
-Designed for long-term token accumulation, the **DCA** strategy periodically swaps a fixed SOL amount into a target mint. 
-- **Goal:** Reduce the impact of volatility by spreading entry points over time.
-- **Decision Logic:** On every tick, the strategy checks if the current SOL balance covers the `amountPerTickLamports` while maintaining a `minSolReserve`. 
-- **Adapters:** Native integration with the `AdapterRegistry` allows the agent to dynamically route through whichever protocol (Jupiter or Orca) currently offers the best price.
+### Dynamic DCA & Accumulation
+The agent can decide to accumulate specific high-conviction assets when SOL reserves are high. Unlike a fixed DCA, it can adjust its "buy" size based on the perceived market state presented in the state snapshot.
 
-### Rebalancer
-The **Rebalancer** strategy maintains a static portfolio allocation (e.g., 60% SOL / 40% USDC).
-- **Goal:** Harvest volatility by selling high and buying low automatically.
-- **Decision Logic:** It fetches live USD prices via the Jupiter Price API and calculates the portfolio's total value. If the SOL weight drifts outside a configurable `bandPct` (e.g., ±5%), it generates a rebalancing swap.
-- **Parameters:** Configurable `targetSolPct`, `bandPct`, and `slippageBps`.
+### Intelligent Rebalancing
+The agent monitors the ratio between SOL and its token holdings. If a token's value grows too large or small relative to SOL, the LLM will generate a `swap` action to restore a healthy portfolio balance, acting much like a traditional rebalancer but with the context of a wider mission.
 
-### Monitor
-The **Monitor** is a zero-risk, observability-only strategy that never executes transactions.
-- **Goal:** Safe infrastructure testing and real-time dashboard data streaming.
-- **Decision Logic:** It gathers balances and price data for a custom list of `trackedMints` and emits the telemetry as a `noop` action. 
-- **Use Case:** Perfect for validating environment configurations and API connections without executing on-chain trades.
+### Liquidity Provision & Yield Generation
+By utilizing the `provide_liquidity` action, the agent acts as a Market Maker on Orca Whirlpools. It evaluates its inventory and the target pool's state to decide when to inject liquidity, earning transaction fees for the wallet.
 
-### Market Maker
-The **Market Maker** strategy showcases advanced interaction with Concentrated Liquidity Market Makers (CLMMs).
-- **Goal:** Earn fees by providing liquidity to Orca Whirlpool pools.
-- **Decision Logic:** Evaluates if the agent's current token and SOL balances match the vault requirements for a specific liquidity range. If balances are sufficient, it triggers a `provide_liquidity` intent.
-- **Execution:** Directly utilizes the `@orca-so/whirlpools-sdk` for precise position management.
+### Passive Observation (Monitoring)
+If the market is volatile or the wallet's spending limits are reached, the LLM will return a `noop` action with a detailed rationale, essentially entering a "monitoring" mode until the next tick.

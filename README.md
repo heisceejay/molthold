@@ -56,17 +56,16 @@ npx tsx src/cli/index.ts dashboard --config agents.json --port 3000
 # Navigate to http://localhost:3000 to view it.
 ```
 
-### 6. Start a single agent
+### 6. Start an autonomous agent
 
 ```bash
-# Start a Market Maker agent
-npx tsx src/cli/index.ts agent start --name agent-1 --strategy market_maker
-# Available strategies: dca, rebalancer, monitor, market_maker
+npx tsx src/cli/index.ts agent start --name agent-1
+# The agent will automatically use the LLM (Claude 3 Haiku) to decide on optimal actions.
 ```
 
 > [!NOTE]
 > **Agents failing with "QUOTE_FAILED"**
-> This is totally expected on Devnet. Public Devnet liquidity pools (AMM curves) on Jupiter and Orca are frequently empty. If an agent tries to swap and there is no liquidity, Jupiter throws `QUOTE_FAILED`. The agent catches this, logs it to the Audit DB safely, and waits for the next tick to try again. Only strategy guaranteed to work is `market_maker` agent to autonomously inject liquidity into the empty pools yourself!
+> This is expected on Devnet. Public Devnet liquidity pools on Jupiter and Orca are frequently empty. The agent catches this and waits for the next tick. The LLM may also decide to provide liquidity to help!
 
 ### 7. Start the multi-agent execution pool
 
@@ -131,7 +130,7 @@ All configuration is via environment variables. Copy `.env.example` to `.env`.
 ```
 CLI / Observer
      │
- Agent Layer          ← Strategy logic, decision loop, multi-agent manager
+ Agent Layer          ← LLM Reasoning Layer (Claude 3 Haiku), Universal Strategy
      │
 Wallet Module ──── Protocol Adapters  ← Jupiter, Orca
      │                    │

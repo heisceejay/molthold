@@ -11,10 +11,6 @@
 import type { WalletClient, TxResult, SpendingLimits } from '../wallet/types.js';
 import type { AdapterRegistry } from '../protocols/types.js';
 
-// ── Strategy names ────────────────────────────────────────────────────────────
-
-export type StrategyName = 'dca' | 'rebalancer' | 'monitor' | 'market_maker';
-
 // ── Agent configuration (loaded from agents.json) ─────────────────────────────
 
 export interface AgentConfig {
@@ -22,10 +18,6 @@ export interface AgentConfig {
   id: string;
   /** Path to the encrypted keystore file for this agent's wallet. */
   keystorePath: string;
-  /** Name of the strategy to run. */
-  strategy: StrategyName;
-  /** Strategy-specific parameters — validated by the strategy class at startup. */
-  strategyParams: Record<string, unknown>;
   /** Tick interval in milliseconds. */
   intervalMs: number;
   /**
@@ -53,6 +45,13 @@ export interface AgentState {
   tickCount: number;
   /** Unix ms timestamp when this state snapshot was taken. */
   snapshotAt: number;
+  /** Current spending status for this session. */
+  spendingStatus: {
+    sessionSpend: bigint;
+    sessionCap: bigint;
+    perTxCap: bigint;
+    remainingBudget: bigint;
+  };
 }
 
 // ── Actions ───────────────────────────────────────────────────────────────────
@@ -85,9 +84,7 @@ export interface TransferActionParams {
 }
 
 export interface ProvideLiquidityActionParams {
-  targetMint: string;
   amountSolLamports: bigint;
-  amountToken: bigint;
 }
 
 // ── Strategy interface ────────────────────────────────────────────────────────
@@ -100,7 +97,7 @@ export interface ProvideLiquidityActionParams {
  *         Keeping these separate makes decide() trivially unit-testable.
  */
 export interface Strategy {
-  readonly name: StrategyName;
+  readonly name: string;
 
   /**
    * Decides what to do this tick given the current on-chain state.
@@ -128,7 +125,6 @@ export interface AgentLoopState {
   agentId: string;
   status: AgentLoopStatus;
   walletPubkey: string;
-  strategy: StrategyName;
   tickCount: number;
   lastTickAt: Date | null;
   lastActionAt: Date | null;

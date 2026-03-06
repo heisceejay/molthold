@@ -69,11 +69,11 @@ export class AgentLoop {
       this.config.id,
       this.wallet.publicKey.toBase58(),
       'agent_start',
-      { strategy: this.config.strategy, intervalMs: this.config.intervalMs },
+      { intervalMs: this.config.intervalMs },
     );
 
     this.logger.info(
-      { agentId: this.config.id, strategy: this.config.strategy, intervalMs: this.config.intervalMs },
+      { agentId: this.config.id, intervalMs: this.config.intervalMs },
       'Agent started',
     );
 
@@ -90,7 +90,7 @@ export class AgentLoop {
       this.config.id,
       this.wallet.publicKey.toBase58(),
       'agent_stop',
-      { tickCount: this.tickCount, strategy: this.config.strategy },
+      { tickCount: this.tickCount },
     );
 
     this.logger.info({ agentId: this.config.id, tickCount: this.tickCount }, 'Agent stopped');
@@ -114,7 +114,6 @@ export class AgentLoop {
       agentId: this.config.id,
       status: this.status,
       walletPubkey: this.wallet.publicKey.toBase58(),
-      strategy: this.config.strategy,
       tickCount: this.tickCount,
       lastTickAt: this.lastTickAt,
       lastActionAt: this.lastActionAt,
@@ -196,7 +195,6 @@ export class AgentLoop {
           'agent_noop',
           {
             tick: this.tickCount,
-            strategy: this.config.strategy,
             rationale: action.rationale,
             solBalance: state.solBalance.toString(),
             ...this.getAuditLimitFields(0n),
@@ -225,7 +223,6 @@ export class AgentLoop {
         'tx_attempt',
         {
           tick: this.tickCount,
-          strategy: this.config.strategy,
           action: action.type,
           solBalance: state.solBalance.toString(),
           ...this.getAuditLimitFields(0n),
@@ -253,7 +250,6 @@ export class AgentLoop {
         eventType,
         {
           tick: this.tickCount,
-          strategy: this.config.strategy,
           action: action.type,
           rationale: action.rationale,
           params: sanitiseParams(action.params),
@@ -297,7 +293,6 @@ export class AgentLoop {
         eventType,
         {
           tick: this.tickCount,
-          strategy: this.config.strategy,
           error: errMsg,
           code: errCode ?? null,
           solBalance: state ? state.solBalance.toString() : null,
@@ -336,6 +331,8 @@ export class AgentLoop {
       );
     }
 
+    const limits = this.wallet.getSpendingLimitStatus();
+
     return {
       agentId: this.config.id,
       walletPubkey: this.wallet.publicKey.toBase58(),
@@ -344,22 +341,20 @@ export class AgentLoop {
       lastActionAt: this.lastActionAt,
       tickCount: this.tickCount,
       snapshotAt: Date.now(),
+      spendingStatus: {
+        sessionSpend: limits.sessionSpend,
+        sessionCap: limits.sessionCap,
+        perTxCap: limits.perTxCap,
+        remainingBudget: limits.sessionCap - limits.sessionSpend,
+      },
     };
   }
 
-  /** Extracts mint addresses this strategy cares about from strategyParams. */
+  /** Extracts mint addresses this strategy cares about. Overridden to track common mints for general purposes. */
   private getTrackedMints(): string[] {
-    const params = this.config.strategyParams;
-    const mints: string[] = [];
-
-    if (typeof params['targetMint'] === 'string') mints.push(params['targetMint']);
-    if (Array.isArray(params['trackedMints'])) {
-      for (const m of params['trackedMints']) {
-        if (typeof m === 'string') mints.push(m);
-      }
-    }
-
-    return mints;
+    // In universal mode, we track a set of common mints or just let the LLM see everything via state
+    // For now, we remain passive or could add a global "trackedMints" list in env.
+    return [];
   }
 
   private getAuditLimitFields(lastTxAmount: bigint): Record<string, string> {

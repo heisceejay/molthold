@@ -41,7 +41,6 @@ const startCmd = new Command('start')
   .description('Start one or more agent loops')
   .option('--config <path>', 'Path to agents.json config file')
   .option('--name <id>', 'Agent ID (for single-agent mode)')
-  .option('--strategy <name>', 'Strategy name: dca | rebalancer | monitor | market_maker (single-agent mode)')
   .option('--interval <ms>', 'Tick interval in ms (single-agent mode)', '30000')
   .option('--keystore <path>', 'Keystore file path (single-agent mode)')
   .option('--db <path>', 'Audit DB path (overrides AUDIT_DB_PATH)')
@@ -69,12 +68,8 @@ const startCmd = new Command('start')
       } catch (err) {
         fatalError(err, `Loading config from ${configPath}`);
       }
-    } else if (opts.name && opts.strategy) {
+    } else if (opts.name) {
       // Single-agent shorthand
-      if (!['dca', 'rebalancer', 'monitor', 'market_maker'].includes(opts.strategy)) {
-        errorAndExit(`Unknown strategy "${opts.strategy}". Must be: dca, rebalancer, monitor, or market_maker`);
-      }
-
       const keystorePath = opts.keystore
         ?? path.resolve(process.cwd(), 'keystores', `${opts.name}.keystore.json`);
 
@@ -85,32 +80,15 @@ const startCmd = new Command('start')
         );
       }
 
-      // Supply dummy strategyParams required by validation for single-agent shorthand 
-      const strategyParams: Record<string, any> = {};
-      if (opts.strategy === 'dca') {
-        strategyParams['targetMint'] = '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU'; // Devnet USDC
-        strategyParams['amountPerTickLamports'] = 50_000_000;
-      } else if (opts.strategy === 'rebalancer') {
-        strategyParams['targetMint'] = '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU';
-        strategyParams['solTargetPercentage'] = 0.5;
-        strategyParams['tolerancePercentage'] = 0.05;
-      } else if (opts.strategy === 'market_maker') {
-        strategyParams['targetMint'] = '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU';
-        strategyParams['amountSolLamports'] = 10_000_000;
-        strategyParams['amountToken'] = 1_000_000;
-      }
-
       configs = [{
         id: opts.name,
         keystorePath,
-        strategy: opts.strategy as AgentConfig['strategy'],
-        strategyParams,
         intervalMs: parseInt(opts.interval ?? '30000', 10),
         limits: spendingLimits,
       }];
     } else {
       errorAndExit(
-        'Provide either --config <path> or both --name <id> and --strategy <name>.',
+        'Provide either --config <path> or --name <id>.',
       );
     }
 
