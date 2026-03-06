@@ -1,0 +1,52 @@
+
+ RUN  v3.2.4 /Users/macbook/Downloads/molthold
+
+{"level":50,"time":1772450315158,"pid":90958,"agentId":"agent-1","tick":1,"err":"Simulated RPC crash for agent-1 tick 2","msg":"Tick failed — loop continues"}
+ ❯ test/simulation/multi-agent.test.ts (5 tests | 2 failed) 159ms
+   × Multi-agent simulation — 3 agents × 5 ticks > GATE: 3 agents complete 5 ticks each concurrently without errors 104ms
+     → expected undefined to be 'stopped' // Object.is equality
+   ✓ Multi-agent simulation — 3 agents × 5 ticks > GATE: each agent's audit rows only reference its own wallet pubkey 14ms
+   × Multi-agent simulation — 3 agents × 5 ticks > GATE: one agent crashing does not affect other agents' tick counts 16ms
+     → actual value must be number or bigint, received "undefined"
+   ✓ Multi-agent simulation — 3 agents × 5 ticks > GATE: no audit DB row contains a secretKey or privateKey field 9ms
+   ✓ Multi-agent simulation — 3 agents × 5 ticks > audit DB summary shows correct tick counts per agent 14ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/simulation/multi-agent.test.ts > Multi-agent simulation — 3 agents × 5 ticks > GATE: 3 agents complete 5 ticks each concurrently without errors
+AssertionError: expected undefined to be 'stopped' // Object.is equality
+
+[32m- Expected:[39m 
+"stopped"
+
+[31m+ Received:[39m 
+undefined
+
+ ❯ test/simulation/multi-agent.test.ts:152:37
+    150| 
+    151|     // All 3 agents should have stopped cleanly
+    152|     expect(loop1.getState().status).toBe('stopped');
+       |                                     ^
+    153|     expect(loop2.getState().status).toBe('stopped');
+    154|     expect(loop3.getState().status).toBe('stopped');
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  test/simulation/multi-agent.test.ts > Multi-agent simulation — 3 agents × 5 ticks > GATE: one agent crashing does not affect other agents' tick counts
+TypeError: actual value must be number or bigint, received "undefined"
+ ❯ test/simulation/multi-agent.test.ts:227:40
+    225| 
+    226|     // Both should reach at least 4 ticks — agent-1's crash on tick 2 …
+    227|     expect(loop1.getState().tickCount).toBeGreaterThanOrEqual(4);
+       |                                        ^
+    228|     expect(loop2.getState().tickCount).toBeGreaterThanOrEqual(4);
+    229| 
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 3 passed (5)
+   Start at  12:18:34
+   Duration  1.04s (transform 85ms, setup 0ms, collect 203ms, tests 159ms, environment 0ms, prepare 99ms)
+

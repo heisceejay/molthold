@@ -1,0 +1,23 @@
+
+ RUN  v3.2.4 /Users/macbook/Downloads/molthold
+
+ ✓ test/unit/wallet/limits.test.ts (19 tests) 8ms
+ ✓ test/unit/wallet/keystore.test.ts (21 tests) 171ms
+{"level":30,"time":1772450269664,"pid":90312,"pubkey":"9CBWK8887n8C9gyvzpWsreySivmUkXh3rdDHTJpjCKXu","msg":"WalletClient initialised"}
+{"level":30,"time":1772450269667,"pid":90312,"pubkey":"CJXrcpPJvNzvPaWUWAk6HFcxd69HG9mo3vc1sqZVbAym","msg":"WalletClient initialised"}
+{"level":30,"time":1772450269668,"pid":90312,"pubkey":"GmaNSgmRGursTyia9FTdsX1v2XLxJUfjPLTD1NtFeres","msg":"WalletClient initialised"}
+{"level":30,"time":1772450269669,"pid":90312,"pubkey":"Ad5xeBPmeis2yMhwXLqNvVgjeoW5A5sv7HGgsgFzsHEQ","msg":"WalletClient initialised"}
+{"level":30,"time":1772450269671,"pid":90312,"pubkey":"CDSHWvm7ShyN2ehbhAJqjT9yx63SvJxnf3ZUkcqkbCeM","msg":"WalletClient initialised"}
+{"level":30,"time":1772450269673,"pid":90312,"pubkey":"7esBypdZb8pq7PTFwJBjUZRfGVeKBRrkustdukqaJQZE","msg":"WalletClient initialised"}
+{"level":30,"time":1772450269675,"pid":90312,"pubkey":"4hSVWvgmFnGGa6jteXnFPiRMJacfyYNZBk5TfcfnVhnq","msg":"WalletClient initialised"}
+{"level":30,"time":1772450269677,"pid":90312,"pubkey":"DEdUs2hZLER7JcYRdWYP8qmjTnBneJFnU1b1CLtTEdUZ","msg":"WalletClient initialised"}
+{"level":30,"time":1772450270313,"pid":90312,"pubkey":"6fc96rFGJiixaop1oKvy2Ew36MQWNNkSPVE4ELagw9a7","msg":"WalletClient initialised"}
+{"level":30,"time":1772450270466,"pid":90312,"pubkey":"7eBNB58uohAMunPsPNB98R3JpEaNamsMFbthHwRhUz5K","msg":"WalletClient initialised"}
+ ✓ test/unit/wallet/wallet.test.ts (12 tests) 882ms
+   ✓ WalletClient — spending limit enforcement > GATE: sendSol() rejects amount exceeding per-tx limit before any RPC call  637ms
+
+ Test Files  3 passed (3)
+      Tests  52 passed (52)
+   Start at  12:17:48
+   Duration  1.88s (transform 91ms, setup 0ms, collect 513ms, tests 1.06s, environment 1ms, prepare 379ms)
+

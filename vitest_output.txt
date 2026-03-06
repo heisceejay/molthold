@@ -1,0 +1,182 @@
+
+ RUN  v3.2.4 /Users/macbook/Downloads/molthold
+
+{"level":50,"time":1772450112604,"pid":88968,"agentId":"test-agent","tick":1,"err":"Strategy exploded on tick 1","msg":"Tick failed — loop continues"}
+{"level":50,"time":1772450112618,"pid":88968,"agentId":"test-agent","tick":1,"err":"Execute blew up","msg":"Tick failed — loop continues"}
+{"level":50,"time":1772450112636,"pid":88968,"agentId":"test-agent","tick":1,"err":"Per-tx limit exceeded","code":"LIMIT_BREACH","msg":"Tick failed — loop continues"}
+{"level":50,"time":1772450112644,"pid":88968,"agentId":"test-agent","tick":1,"err":"RPC timeout","msg":"Tick failed — loop continues"}
+ ❯ test/unit/agent/loop.test.ts (14 tests | 7 failed) 280ms
+   × AgentLoop — lifecycle > initial state is idle 160ms
+     → expected undefined to be 'idle' // Object.is equality
+   × AgentLoop — lifecycle > start() transitions status to running then stopped 10ms
+     → expected undefined to be 'stopped' // Object.is equality
+   × AgentLoop — lifecycle > getState().startedAt is set after start() 7ms
+     → Cannot read properties of undefined (reading 'getTime')
+   ✓ AgentLoop — lifecycle > calling start() twice is a no-op for the second call 8ms
+   × AgentLoop — crash isolation > GATE: throwing decide() does not crash the loop — next tick executes 11ms
+     → expected undefined to be 2 // Object.is equality
+   × AgentLoop — crash isolation > GATE: throwing execute() does not crash the loop 21ms
+     → expected undefined to be 'stopped' // Object.is equality
+   ✓ AgentLoop — crash isolation > GATE: LIMIT_BREACH error writes limit_breach event to audit DB 9ms
+   × AgentLoop — crash isolation > throwing gatherState (wallet RPC error) does not crash the loop 10ms
+     → expected undefined to be 2 // Object.is equality
+   ✓ AgentLoop — noop ticks > noop tick writes agent_noop to audit DB 7ms
+   ✓ AgentLoop — noop ticks > noop tick never calls strategy.execute() 7ms
+   ✓ AgentLoop — swap ticks > confirmed swap tick writes tx_confirmed to audit DB with signature 8ms
+   × AgentLoop — swap ticks > lastActionAt is updated after a non-noop tick 6ms
+     → expected undefined to be null
+   ✓ AgentLoop — audit trail > writes agent_start and agent_stop events 7ms
+   ✓ AgentLoop — audit trail > audit DB rows contain walletPubkey matching the wallet 7ms
+ ✓ test/unit/cli/commands.test.ts (17 tests) 42545ms
+   ✓ agentw --help > exits 0 and lists wallet and agent commands  2241ms
+   ✓ agentw --help > prints version with --version  2555ms
+   ✓ agentw wallet --help > exits 0 and lists all wallet subcommands  2644ms
+   ✓ agentw wallet list > exits 0 even when keystores/ directory does not exist  4008ms
+   ✓ agentw wallet list > exits 0 when keystores/ exists but is empty  3165ms
+   ✓ agentw wallet create — validation > GATE: exits 1 for invalid wallet name (spaces)  2017ms
+   ✓ agentw wallet create — validation > GATE: exits 1 for invalid wallet name (special chars)  1886ms
+   ✓ agentw wallet create — validation > GATE: exits 1 when password is too short  1701ms
+   ✓ agentw wallet create — validation > exits 1 when wallet name already exists  2419ms
+   ✓ agentw wallet balance > GATE: exits 1 when wallet not found  2367ms
+   ✓ agentw wallet airdrop > exits 1 for invalid amount (> 2 SOL)  2315ms
+   ✓ agentw agent log > GATE: exits 0 and prints helpful message when audit DB does not exist  2297ms
+   ✓ agentw agent log > GATE: exits 0 and prints events when DB has data  2586ms
+   ✓ agentw agent log > --json flag outputs one JSON object per line  2061ms
+   ✓ agentw agent status > GATE: exits 0 with helpful message when DB does not exist  2560ms
+   ✓ agentw agent status > shows event counts per agent when DB has data  2880ms
+   ✓ Audit DB key-safety — CLI layer > GATE: agent log --json output never contains key-adjacent field names  2835ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 7 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/unit/agent/loop.test.ts > AgentLoop — lifecycle > initial state is idle
+AssertionError: expected undefined to be 'idle' // Object.is equality
+
+[32m- Expected:[39m 
+"idle"
+
+[31m+ Received:[39m 
+undefined
+
+ ❯ test/unit/agent/loop.test.ts:105:38
+    103|     try {
+    104|       const loop = new AgentLoop(makeConfig(), makeWallet(), makeNoopS…
+    105|       expect(loop.getState().status).toBe('idle');
+       |                                      ^
+    106|       expect(loop.getState().tickCount).toBe(0);
+    107|     } finally { cleanup(); }
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/7]⎯
+
+ FAIL  test/unit/agent/loop.test.ts > AgentLoop — lifecycle > start() transitions status to running then stopped
+AssertionError: expected undefined to be 'stopped' // Object.is equality
+
+[32m- Expected:[39m 
+"stopped"
+
+[31m+ Received:[39m 
+undefined
+
+ ❯ test/unit/agent/loop.test.ts:124:28
+    122| 
+    123|       const state = loop.getState();
+    124|       expect(state.status).toBe('stopped');
+       |                            ^
+    125|       expect(state.tickCount).toBeGreaterThanOrEqual(1);
+    126|     } finally { cleanup(); }
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/7]⎯
+
+ FAIL  test/unit/agent/loop.test.ts > AgentLoop — lifecycle > getState().startedAt is set after start()
+TypeError: Cannot read properties of undefined (reading 'getTime')
+ ❯ test/unit/agent/loop.test.ts:145:30
+    143| 
+    144|       expect(loop.getState().startedAt).not.toBeNull();
+    145|       expect(loop.getState().startedAt!.getTime()).toBeGreaterThanOrEq…
+       |                              ^
+    146|       expect(loop.getState().startedAt!.getTime()).toBeLessThanOrEqual…
+    147|     } finally { cleanup(); }
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/7]⎯
+
+ FAIL  test/unit/agent/loop.test.ts > AgentLoop — crash isolation > GATE: throwing decide() does not crash the loop — next tick executes
+AssertionError: expected undefined to be 2 // Object.is equality
+
+[32m- Expected:[39m 
+2
+
+[31m+ Received:[39m 
+undefined
+
+ ❯ test/unit/agent/loop.test.ts:190:41
+    188| 
+    189|       expect(callCount).toBe(2);
+    190|       expect(loop.getState().tickCount).toBe(2);
+       |                                         ^
+    191|       expect(loop.getState().lastError).toContain('Strategy exploded o…
+    192|       expect(loop.getState().status).toBe('stopped');
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/7]⎯
+
+ FAIL  test/unit/agent/loop.test.ts > AgentLoop — crash isolation > GATE: throwing execute() does not crash the loop
+AssertionError: expected undefined to be 'stopped' // Object.is equality
+
+[32m- Expected:[39m 
+"stopped"
+
+[31m+ Received:[39m 
+undefined
+
+ ❯ test/unit/agent/loop.test.ts:216:38
+    214| 
+    215|       expect(execCalls).toBe(1);
+    216|       expect(loop.getState().status).toBe('stopped');
+       |                                      ^
+    217|       // Error was recorded but loop survived
+    218|       expect(loop.getState().lastError).toContain('Execute blew up');
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/7]⎯
+
+ FAIL  test/unit/agent/loop.test.ts > AgentLoop — crash isolation > throwing gatherState (wallet RPC error) does not crash the loop
+AssertionError: expected undefined to be 2 // Object.is equality
+
+[32m- Expected:[39m 
+2
+
+[31m+ Received:[39m 
+undefined
+
+ ❯ test/unit/agent/loop.test.ts:268:41
+    266| 
+    267|       // tick 1 errored (RPC), tick 2 ran ok — loop survived both
+    268|       expect(loop.getState().tickCount).toBe(2);
+       |                                         ^
+    269|     } finally { cleanup(); }
+    270|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/7]⎯
+
+ FAIL  test/unit/agent/loop.test.ts > AgentLoop — swap ticks > lastActionAt is updated after a non-noop tick
+AssertionError: expected undefined to be null
+
+[32m- Expected:[39m 
+null
+
+[31m+ Received:[39m 
+undefined
+
+ ❯ test/unit/agent/loop.test.ts:363:44
+    361| 
+    362|       const loop = new AgentLoop(makeConfig(), makeWallet(), strategy,…
+    363|       expect(loop.getState().lastActionAt).toBeNull();
+       |                                            ^
+    364|       await loop.start();
+    365|       expect(loop.getState().lastActionAt).not.toBeNull();
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/7]⎯
+
+
+ Test Files  1 failed | 1 passed (2)
+      Tests  7 failed | 24 passed (31)
+   Start at  12:15:11
+   Duration  43.60s (transform 184ms, setup 0ms, collect 378ms, tests 42.83s, environment 0ms, prepare 449ms)
+

@@ -1,0 +1,41 @@
+
+ RUN  v3.2.4 /Users/macbook/Downloads/molthold
+
+ ✓ test/unit/agent/audit.test.ts (22 tests) 46ms
+ ✓ test/unit/agent/strategies.test.ts (28 tests) 25ms
+{"level":50,"time":1772450247401,"pid":90164,"agentId":"test-agent","tick":1,"err":"Strategy exploded on tick 1","msg":"Tick failed — loop continues"}
+{"level":50,"time":1772450247427,"pid":90164,"agentId":"test-agent","tick":1,"err":"Execute blew up","msg":"Tick failed — loop continues"}
+{"level":50,"time":1772450247434,"pid":90164,"agentId":"test-agent","tick":1,"err":"Per-tx limit exceeded","code":"LIMIT_BREACH","msg":"Tick failed — loop continues"}
+{"level":50,"time":1772450247450,"pid":90164,"agentId":"test-agent","tick":1,"err":"RPC timeout","msg":"Tick failed — loop continues"}
+ ✓ test/unit/agent/loop.test.ts (14 tests) 264ms
+ ❯ test/unit/agent/leak-audit.test.ts (1 test | 1 failed) 383ms
+   × Secret leak audit (Phase 5.1) > GATE: runs DCA agent for 3 ticks and never leaks private key in logs or audit DB 381ms
+     → expected 6 to be 3 // Object.is equality
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/unit/agent/leak-audit.test.ts > Secret leak audit (Phase 5.1) > GATE: runs DCA agent for 3 ticks and never leaks private key in logs or audit DB
+AssertionError: expected 6 to be 3 // Object.is equality
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- 3[39m
+[31m+ 6[39m
+
+ ❯ test/unit/agent/leak-audit.test.ts:121:33
+    119|             const db = new Database(dbPath, { readonly: true });
+    120|             const rows = db.prepare('SELECT * FROM events').all() as a…
+    121|             expect(rows.length).toBe(3); // 3 ticks
+       |                                 ^
+    122| 
+    123|             for (const row of rows) {
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed | 3 passed (4)
+      Tests  1 failed | 64 passed (65)
+   Start at  12:17:26
+   Duration  1.31s (transform 188ms, setup 0ms, collect 755ms, tests 718ms, environment 11ms, prepare 636ms)
+

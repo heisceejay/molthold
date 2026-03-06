@@ -8,6 +8,13 @@ describe('LLMDecider', () => {
         maxSessionLamports: 1_000_000_000n, // 1.0 SOL
     };
 
+    const mockLogger = {
+        info: vi.fn(),
+        warn: vi.fn(),
+        error: vi.fn(),
+        debug: vi.fn(),
+    } as any;
+
     const mockState: AgentState = {
         agentId: 'test-agent',
         walletPubkey: 'TestWalletPubkey1111111111111111111111111',
@@ -35,7 +42,7 @@ describe('LLMDecider', () => {
     });
 
     it('returns error if no API keys are set', async () => {
-        const decider = new LLMDecider(mockLimits);
+        const decider = new LLMDecider(mockLimits, mockLogger);
         const result = await decider.decide(mockState);
         expect(result.type).toBe('noop');
         expect(result.rationale).toContain('No LLM API keys set');
@@ -52,7 +59,7 @@ describe('LLMDecider', () => {
             }),
         });
 
-        const decider = new LLMDecider(mockLimits);
+        const decider = new LLMDecider(mockLimits, mockLogger);
         await decider.decide(mockState);
 
         const [url, opts] = (fetch as any).mock.calls[0];
@@ -73,7 +80,7 @@ describe('LLMDecider', () => {
             }),
         });
 
-        const decider = new LLMDecider(mockLimits);
+        const decider = new LLMDecider(mockLimits, mockLogger);
         await decider.decide(mockState);
 
         const [url, opts] = (fetch as any).mock.calls[0];
@@ -94,7 +101,7 @@ describe('LLMDecider', () => {
             }),
         });
 
-        const decider = new LLMDecider(mockLimits);
+        const decider = new LLMDecider(mockLimits, mockLogger);
         await decider.decide(mockState);
 
         const [url] = (fetch as any).mock.calls[0];
@@ -116,7 +123,7 @@ describe('LLMDecider', () => {
             }),
         });
 
-        const decider = new LLMDecider(mockLimits);
+        const decider = new LLMDecider(mockLimits, mockLogger);
         const result = await decider.decide(mockState);
 
         expect(result.type).toBe('swap');
@@ -133,7 +140,7 @@ describe('LLMDecider', () => {
             }),
         });
 
-        const decider = new LLMDecider(mockLimits);
+        const decider = new LLMDecider(mockLimits, mockLogger);
         const result = await decider.decide(mockState);
 
         expect(result.type).toBe('noop');
@@ -155,7 +162,7 @@ describe('LLMDecider', () => {
             }),
         });
 
-        const decider = new LLMDecider(mockLimits);
+        const decider = new LLMDecider(mockLimits, mockLogger);
         const result = await decider.decide(mockState);
 
         expect(result.type).toBe('noop');

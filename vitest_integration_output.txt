@@ -1,0 +1,17 @@
+
+ RUN  v3.2.4 /Users/macbook/Downloads/molthold
+
+ ✓ test/integration/cli/wallet.test.ts (8 tests) 41191ms
+   ✓ agentw wallet create — integration > GATE: creates a keystore file on disk  3185ms
+   ✓ agentw wallet create — integration > exits 1 if wallet name already exists  2353ms
+   ✓ agentw wallet list — integration > lists the created wallet  2643ms
+   ✓ agentw wallet balance — integration (devnet) > GATE: prints SOL balance for newly created wallet  3618ms
+   ✓ agentw wallet airdrop — integration (devnet) > GATE: airdrop increases balance  24048ms
+   ✓ agentw wallet transfer — validation (no devnet) > exits 1 for invalid destination pubkey  2677ms
+   ✓ agentw wallet transfer — validation (no devnet) > exits 1 for zero amount  2663ms
+
+ Test Files  1 passed (1)
+      Tests  8 passed (8)
+   Start at  12:16:29
+   Duration  41.93s (transform 36ms, setup 0ms, collect 37ms, tests 41.19s, environment 0ms, prepare 117ms)
+

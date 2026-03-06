@@ -9,12 +9,15 @@
 
 import type { Action, AgentState } from '../types.js';
 import type { SpendingLimits } from '../../wallet/types.js';
+import type { Logger } from '../../logger/logger.js';
 
 export class LLMDecider {
     private readonly limits: SpendingLimits;
+    private readonly logger: Logger;
 
-    constructor(limits: SpendingLimits) {
+    constructor(limits: SpendingLimits, logger: Logger) {
         this.limits = limits;
+        this.logger = logger;
     }
 
     /**
@@ -80,7 +83,7 @@ export class LLMDecider {
             if (!response.ok) {
                 const errorText = await response.text();
                 const provider = groqKey ? 'Groq' : 'OpenRouter';
-                console.error(`[LLMDecider] ${provider} API error: ${response.status} ${errorText}`);
+                this.logger.error({ status: response.status, error: errorText }, `[LLMDecider] ${provider} API error`);
                 return { type: 'noop', params: {}, rationale: `${provider} API error` };
             }
 
@@ -88,13 +91,13 @@ export class LLMDecider {
             const content = data.choices?.[0]?.message?.content;
 
             if (!content) {
-                console.warn('[LLMDecider] LLM returned empty response');
+                this.logger.warn('[LLMDecider] LLM returned empty response');
                 return { type: 'noop', params: {}, rationale: 'LLM returned empty response' };
             }
 
             return this.parseAction(content);
         } catch (err) {
-            console.error('[LLMDecider] Unexpected error:', err);
+            this.logger.error({ err }, '[LLMDecider] Unexpected error');
             return { type: 'noop', params: {}, rationale: 'Unexpected error' };
         }
     }
@@ -186,7 +189,7 @@ RULES:
 
             // 2. Validate against per-tx limit
             if (amount > this.limits.maxPerTxLamports) {
-                console.warn(`[LLMDecider] Action ${parsed.type} of ${amount} exceeds per-tx limit ${this.limits.maxPerTxLamports}`);
+                this.logger.warn({ amount: amount.toString(), limit: this.limits.maxPerTxLamports.toString() }, `[LLMDecider] Action ${parsed.type} exceeds per-tx limit`);
                 return this.noop(`Action exceeded per-transaction limit (${amount} > ${this.limits.maxPerTxLamports})`);
             }
 
@@ -195,7 +198,7 @@ RULES:
 
             return parsed;
         } catch (error) {
-            console.warn('[LLMDecider] Failed to parse LLM response as Action:', error, content);
+            this.logger.warn({ error, content }, '[LLMDecider] Failed to parse LLM response as Action');
             return this.noop('LLM response unparseable');
         }
     }

@@ -90,7 +90,7 @@ export class MultiAgentManager {
         createAgentLogger(this.logger, config.id, keypair.publicKey.toBase58()),
       );
 
-      const strategy = createStrategy(this.rpcUrl);
+      const strategy = createStrategy(this.rpcUrl, config.limits, agentLogger);
 
       const loop = new AgentLoop(
         config,
