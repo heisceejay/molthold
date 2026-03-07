@@ -201,6 +201,28 @@ describe('loadKeystore', () => {
 
     expect(() => loadKeystore(keystorePath, 'password12345')).toThrow(WalletError);
   });
+
+
+  it('loads using KDF params stored in keystore, not current process env', () => {
+    const keypair = Keypair.generate();
+    createKeystore(keypair, 'correctpassword', keystorePath);
+
+    process.env['TEST_KDF_N'] = '2048';
+
+    const loaded = loadKeystore(keystorePath, 'correctpassword');
+    expect(loaded.publicKey.toBase58()).toBe(keypair.publicKey.toBase58());
+  });
+
+  it('throws when keystore KDF params are invalid', () => {
+    const keypair = Keypair.generate();
+    createKeystore(keypair, 'password12345', keystorePath);
+
+    const raw = JSON.parse(fs.readFileSync(keystorePath, 'utf8'));
+    raw.encrypted.kdfParams.N = 0;
+    fs.writeFileSync(keystorePath, JSON.stringify(raw));
+
+    expect(() => loadKeystore(keystorePath, 'password12345')).toThrow('KDF parameters are invalid');
+  });
 });
 
 describe('getPublicKeyFromKeystore', () => {

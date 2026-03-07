@@ -26,7 +26,7 @@ import { WalletError, type KeystoreFile } from './types.js';
 
 /**
  * Production scrypt parameters.
- * N=32768 ≈ 200ms on a modern laptop. Increase N for more resistance.
+ * N=16384 by default (balanced for runtime compatibility). Increase N for more resistance.
  * Test environments can override via TEST_KDF_N env var for speed.
  */
 const KDF_PARAMS = {
@@ -46,8 +46,7 @@ const AUTH_TAG_LEN = 16; // GCM auth tag = 16 bytes
  * Derives a 32-byte AES key from a password + salt using scrypt.
  * The returned Buffer is the only copy of the derived key in memory.
  */
-function deriveKey(password: string, salt: Buffer): Buffer {
-  const N = process.env['TEST_KDF_N'] ? parseInt(process.env['TEST_KDF_N'], 10) : KDF_PARAMS.N;
+function deriveKey(password: string, salt: Buffer, N: number = KDF_PARAMS.N): Buffer {
   return crypto.scryptSync(password, salt, KEY_LEN, {
     N,
     r: KDF_PARAMS.r,
@@ -84,7 +83,7 @@ export function createKeystore(
 
   const salt = crypto.randomBytes(SALT_LEN);
   const iv = crypto.randomBytes(IV_LEN);
-  const derivedKey = deriveKey(password, salt);
+  const derivedKey = deriveKey(password, salt, KDF_PARAMS.N);
 
   try {
     const cipher = crypto.createCipheriv('aes-256-gcm', derivedKey, iv);
@@ -167,7 +166,7 @@ export function loadKeystore(keystorePath: string, password: string): Keypair {
     );
   }
 
-  const { ciphertext, iv, authTag, salt, kdfParams } = ks.encrypted;
+  const { ciphertext, iv, authTag, salt } = ks.encrypted;
 
   const saltBuf = Buffer.from(salt, 'hex');
   const ivBuf = Buffer.from(iv, 'hex');
@@ -185,16 +184,19 @@ export function loadKeystore(keystorePath: string, password: string): Keypair {
     throw new WalletError('INVALID_KEYSTORE', 'Keystore auth tag has unexpected length.');
   }
 
-  const derivedKey = deriveKey(password, Buffer.from(salt, 'hex'));
+  const kdfN = ks.encrypted.kdfParams?.N;
+  if (!Number.isInteger(kdfN) || kdfN < 2) {
+    throw new WalletError('INVALID_KEYSTORE', 'Keystore KDF parameters are invalid.');
+  }
+
+  const derivedKey = deriveKey(password, saltBuf, kdfN);
 
   let plaintext: Buffer;
   try {
     const decipher = crypto.createDecipheriv('aes-256-gcm', derivedKey, ivBuf);
     decipher.setAuthTag(authTagBuf);
-    // Use actual kdfParams from file in case they differ from current defaults
-    void kdfParams; // already used above in deriveKey via the ks object
     plaintext = Buffer.concat([decipher.update(ciphertextBuf), decipher.final()]);
-  } catch (_err) {
+  } catch {
     // GCM auth failure means wrong password OR tampered ciphertext — same error for both
     throw new WalletError(
       'INVALID_KEYSTORE',

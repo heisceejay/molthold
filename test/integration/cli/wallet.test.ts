@@ -19,11 +19,14 @@ import * as path from 'node:path';
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 const CLI_ENTRY = path.resolve(__dirname, '../../../src/cli/index.ts');
+const TSX_CLI = path.resolve(__dirname, '../../../node_modules/tsx/dist/cli.mjs');
 const DEVNET_URL = process.env['SOLANA_RPC_URL'] ?? 'https://api.devnet.solana.com';
 const TEST_PASS = 'integration-test-password-123';
+const RUN_DEVNET = process.env['RUN_DEVNET_INTEGRATION'] === '1';
+const itDev = RUN_DEVNET ? it : it.skip;
 
 function cli(args: string[], cwd: string, extra: Record<string, string> = {}) {
-  return spawnSync('npx', ['tsx', CLI_ENTRY, ...args], {
+  return spawnSync(process.execPath, [TSX_CLI, CLI_ENTRY, ...args], {
     encoding: 'utf8',
     timeout: 60_000,
     env: {
@@ -120,7 +123,7 @@ describe('agentw wallet list — integration', () => {
 });
 
 describe('agentw wallet balance — integration (devnet)', () => {
-  it('GATE: prints SOL balance for newly created wallet', () => {
+  itDev('GATE: prints SOL balance for newly created wallet', () => {
     const result = cli(
       ['wallet', 'balance', '--name', WALLET_NAME, '--password', TEST_PASS],
       tmpDir,
@@ -135,7 +138,7 @@ describe('agentw wallet balance — integration (devnet)', () => {
 });
 
 describe('agentw wallet airdrop — integration (devnet)', () => {
-  it('GATE: airdrop increases balance', async () => {
+  itDev('GATE: airdrop increases balance', async () => {
     // Get balance before
     const before = cli(
       ['wallet', 'balance', '--name', WALLET_NAME, '--password', TEST_PASS],
