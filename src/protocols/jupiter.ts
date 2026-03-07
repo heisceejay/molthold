@@ -170,7 +170,10 @@ export class JupiterAdapter implements SwapAdapter {
     const preOutBalance = await this.getTokenBalance(wallet.publicKey, outputMintPk);
 
     // 5. Sign and send via wallet (SpendingLimitGuard fires here)
-    const txResult = await wallet.signAndSendTransaction(tx, liveQuote.inAmount);
+    // Only record spend if the input is SOL or WSOL
+    const isSolInput = liveQuote.inputMint === 'So11111111111111111111111111111111111111112' ||
+      liveQuote.inputMint === '11111111111111111111111111111111';
+    const txResult = await wallet.signAndSendTransaction(tx, isSolInput ? liveQuote.inAmount : 0n);
 
     if (txResult.status !== 'confirmed') {
       return {

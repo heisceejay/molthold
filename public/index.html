@@ -751,7 +751,7 @@
       <div class="stats-label">Stats — <span id="stats-agent-label" style="color:var(--red)">DCA-ALPHA</span></div>
 
       <div class="stat-block">
-        <div class="stat-key">SOL Balance</div>
+        <div class="stat-key">SOL Balance <span id="stat-updated" style="font-size: 10px; opacity: 0.5; font-weight: normal; margin-left: 4px;"></span></div>
         <div class="stat-value" id="stat-balance">—</div>
         <div class="stat-sub" id="stat-balance-sub">fetching…</div>
       </div>
@@ -940,8 +940,10 @@
 
     function renderStats() {
       const a = AGENTS[activeAgent];
+      if (!a) return;
 
       document.getElementById('stat-balance').textContent = solFmt(a.balance) + ' SOL';
+      document.getElementById('stat-updated').textContent = `(last checked: ${new Date().toLocaleTimeString()})`;
       document.getElementById('stat-balance-sub').textContent = `wallet balance`;
       document.getElementById('stat-ticks').textContent = a.ticks;
       if (a.strategy === 'MARKET_MAKER') {

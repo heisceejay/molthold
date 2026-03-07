@@ -121,6 +121,7 @@ export class UniversalStrategy implements Strategy {
         tx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
         tx.feePayer = wallet.publicKey;
 
-        return await wallet.signAndSendTransaction(tx, amount);
+        // Self-transfer for LP simulation doesn't "spend" SOL from the session budget
+        return await wallet.signAndSendTransaction(tx, 0n);
     }
 }

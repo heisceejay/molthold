@@ -5,6 +5,7 @@
  * connected to the live agent framework endpoints.
  */
 
+import { Connection, PublicKey } from '@solana/web3.js';
 import * as http from 'node:http';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
@@ -45,8 +46,10 @@ export const dashboardCommand = new Command('dashboard')
         // Mount HTTP Server
         const server = http.createServer((req, res) => {
             void (async () => {
-                // CORS for local development
                 res.setHeader('Access-Control-Allow-Origin', '*');
+                res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+                res.setHeader('Pragma', 'no-cache');
+                res.setHeader('Expires', '0');
 
                 if (req.method === 'GET' && req.url === '/') {
                     // Serve the dashboard HTML file
@@ -67,6 +70,7 @@ export const dashboardCommand = new Command('dashboard')
                     const configs = loadAgentConfigs(opts.config);
                     const states = await manager.getAgentStates();
                     const auditDb = manager.getAuditDb();
+                    const connection = new Connection(rpcUrl, 'confirmed');
 
                     // 1. Discovery phase: collect unique IDs from all sources
                     const allAgentIds = new Set<string>();
@@ -88,6 +92,24 @@ export const dashboardCommand = new Command('dashboard')
                     }
 
                     const agentMap: Record<string, any> = {};
+
+                    // Pre-fetch live balances from RPC for all IDs that have a valid public key
+                    const liveBalances = new Map<string, number>();
+                    await Promise.all(Array.from(allAgentIds).map(async (agentId) => {
+                        try {
+                            const config = configs.find(c => c.id === agentId);
+                            const ksPathRelative = config?.keystorePath || path.join('keystores', `${agentId}.keystore.json`);
+                            const ksPathAbsolute = path.resolve(process.cwd(), ksPathRelative);
+                            if (fs.existsSync(ksPathAbsolute)) {
+                                const pubkeyStr = getPublicKeyFromKeystore(ksPathAbsolute);
+                                const balance = await connection.getBalance(new PublicKey(pubkeyStr));
+                                liveBalances.set(agentId, balance / 1_000_000_000);
+                                logger.debug({ agentId, balance: balance / 1_000_000_000 }, 'Fetched live balance from RPC');
+                            }
+                        } catch (e) {
+                            logger.error({ agentId, err: String(e) }, 'Failed to fetch live balance');
+                        }
+                    }));
 
                     for (const agentId of allAgentIds) {
                         const config = configs.find(c => c.id === agentId);
@@ -196,18 +218,20 @@ export const dashboardCommand = new Command('dashboard')
                         const isRunning = (state !== undefined) || isHeartbeatRunning;
 
                         const totalTicks = isRunning ? (state?.tickCount ?? latestTick) : latestTick;
+                        const existing = agentMap[agentId] || {};
                         agentMap[agentId] = {
+                            ...existing,
                             strategy: 'AI',
                             ticks: totalTicks,
                             swaps: swapCount,
                             lps: lpCount,
                             noops: Math.max(0, totalTicks - swapCount - lpCount),
                             errors: errorCount,
-                            sessionSol: state ? Number(state.sessionSpend) / 1_000_000_000 : (agentMap[agentId]?.sessionSol ?? 0),
-                            sessionCap: state ? Number(state.sessionCap) / 1_000_000_000 : (agentMap[agentId]?.sessionCap ?? (Number(config?.limits.maxSessionLamports ?? 0n) / 1_000_000_000 || 1.0)),
-                            perTxCap: state ? Number(state.perTxCap) / 1_000_000_000 : (agentMap[agentId]?.perTxCap ?? (Number(config?.limits.maxPerTxLamports ?? 0n) / 1_000_000_000 || 0.1)),
-                            lastTxSol: state ? Number(state.lastTxAmount) / 1_000_000_000 : (agentMap[agentId]?.lastTxSol ?? 0),
-                            balance: state ? Number(state.solBalance) / 1_000_000_000 : latestSolBalance,
+                            sessionSol: state ? Number(state.sessionSpend) / 1_000_000_000 : (existing.sessionSol ?? 0),
+                            sessionCap: state ? Number(state.sessionCap) / 1_000_000_000 : (existing.sessionCap ?? (Number(config?.limits.maxSessionLamports ?? 0n) / 1_000_000_000 || 1.0)),
+                            perTxCap: state ? Number(state.perTxCap) / 1_000_000_000 : (existing.perTxCap ?? (Number(config?.limits.maxPerTxLamports ?? 0n) / 1_000_000_000 || 0.1)),
+                            lastTxSol: state ? Number(state.lastTxAmount) / 1_000_000_000 : (existing.lastTxSol ?? 0),
+                            balance: liveBalances.get(agentId) ?? (state ? Number(state.solBalance) / 1_000_000_000 : latestSolBalance),
                             pubkey: state?.walletPubkey ?? latestPubkey,
                             status: isRunning ? 'running' : 'stopped'
                         };
@@ -350,5 +374,6 @@ export const dashboardCommand = new Command('dashboard')
 
         server.listen(port, '0.0.0.0', () => {
             logger.info(`Dashboard running at http://localhost:${port}/`);
+            logger.info(`Serving live data from RPC: ${rpcUrl}`);
         });
     });

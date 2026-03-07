@@ -213,7 +213,9 @@ export class OrcaAdapter implements SwapAdapter {
     (transaction as any).recentBlockhash = (await this.connection.getLatestBlockhash('confirmed')).blockhash;
 
     const preOutBalance = await wallet.getTokenBalance(output);
-    const txResult = await wallet.signAndSendTransaction(transaction as any, quote.inAmount);
+    const isSolInput = quote.inputMint === 'So11111111111111111111111111111111111111112' ||
+      quote.inputMint === '11111111111111111111111111111111';
+    const txResult = await wallet.signAndSendTransaction(transaction as any, isSolInput ? quote.inAmount : 0n);
 
     if (txResult.status !== 'confirmed') {
       return {
