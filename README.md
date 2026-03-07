@@ -34,22 +34,22 @@ cp .env.example .env
 
 ```bash
 # This creates the encrypted keystore AND adds the agent to agents.json
-npx tsx src/cli/index.ts agent create --name agent-1
+agentw agent create --name agent-1
 # Output: ✓ Created Agent: agent-1
 ```
 
 ### 3. Fund with Dev/Test SOL
 
 ```bash
-npx tsx src/cli/index.ts wallet airdrop --name agent-1 --amount 1
+agentw wallet airdrop --name agent-1 --amount 1
 # Output: ✓ Airdrop confirmed!
 ```
-> **Note:** If you receive a `429 Too Many Requests` error, the Solana Devnet CLI faucet is globally rate-limited. To bypass this, run `npx tsx src/cli/index.ts wallet info --name agent-1` to get your public key, then paste it into a web faucet like [faucet.solana.com](https://faucet.solana.com/) to receive funds instantly.
+> **Note:** If you receive a `429 Too Many Requests` error, the Solana Devnet CLI faucet is globally rate-limited. To bypass this, run `agentw wallet info --name agent-1` to get your public key, then paste it into a web faucet like [faucet.solana.com](https://faucet.solana.com/) to receive funds instantly.
 
 ### 4. Check balance
 
 ```bash
-npx tsx src/cli/index.ts wallet balance --name agent-1
+agentw wallet balance --name agent-1
 # Output: SOL balance: 1.000000 SOL (1,000,000,000 lamports)
 ```
 
@@ -58,7 +58,7 @@ npx tsx src/cli/index.ts wallet balance --name agent-1
 The dashboard operates strictly as a read-only observability server. It hooks into the local SQLite Audit DB and streams real-time telemetry from your agents. Note that you must start the agents separately for them to appear running.
 
 ```bash
-npx tsx src/cli/index.ts dashboard --config agents.json --port 3000
+agentw dashboard --config agents.json --port 3000
 # Boots up a local UI dashboard polling logs.
 # Navigate to http://localhost:3000 to view it.
 ```
@@ -66,7 +66,7 @@ npx tsx src/cli/index.ts dashboard --config agents.json --port 3000
 ### 6. Start an autonomous agent
 
 ```bash
-npx tsx src/cli/index.ts agent start --name agent-1
+agentw agent start --name agent-1
 # The agent will automatically use the LLM (Claude 3 Haiku) to decide on optimal actions.
 ```
 
@@ -78,21 +78,21 @@ npx tsx src/cli/index.ts agent start --name agent-1
 
 Launch the orchestration layer defined in your `agents.json`.
 ```bash
-npx tsx src/cli/index.ts agent start --config agents.json
+agentw agent start --config agents.json
 ```
 
 ### 8. Manage individual agents (Cross-Process)
 
 You can signal specific agents to stop gracefully without killing the entire pool or closing the terminal.
 ```bash
-npx tsx src/cli/index.ts agent stop --name agent-1
+agentw agent stop --name agent-1
 ```
 The agent will detect the signal at the start of its next tick and shut down safely.
 
 ### 9. Inspect the Audit Database
 
 ```bash
-npx tsx src/cli/index.ts agent log --name agent-1 --last 20
+agentw agent log --name agent-1 --last 20
 ```
 Safely prints the structured internal agent operations.
 
@@ -170,10 +170,10 @@ Devnet faucet is rate-limited. Wait 30 seconds and retry, or fund from a pre-fun
 Either set `WALLET_PASSWORD` in `.env` or pass `--password <pass>` to the CLI command.
 
 **`Keystore file not found` error**
-Run `npx tsx src/cli/index.ts wallet create --name <agent-name>` first to generate the keystore.
+Run `agentw wallet create --name <agent-name>` first to generate the keystore.
 
 **Integration tests skipped**
-Set `WALLET_SECRET_KEY` in `.env` to a funded devnet keypair. Generate one with `solana-keygen new` (Solana CLI) or use `npx tsx src/cli/index.ts wallet create`.
+Set `WALLET_SECRET_KEY` in `.env` to a funded devnet keypair. Generate one with `solana-keygen new` (Solana CLI) or use `agentw wallet create`.
 
 ---
 
