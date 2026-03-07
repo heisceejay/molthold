@@ -7,5 +7,14 @@
       "maxPerTxLamports": 100000000,
       "maxSessionLamports": 1000000000
     }
+  },
+  {
+    "id": "verify-agent",
+    "keystorePath": "keystores/verify-agent.keystore.json",
+    "intervalMs": 30000,
+    "limits": {
+      "maxPerTxSol": 0.1,
+      "maxSessionSol": 1
+    }
   }
 ]

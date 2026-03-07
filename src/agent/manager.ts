@@ -54,7 +54,7 @@ export class MultiAgentManager {
    * Constructs all agent loops and starts them concurrently.
    * Returns immediately — loops run in the background.
    */
-  async start(): Promise<void> {
+  async start(password?: string): Promise<void> {
     if (this.started) {
       this.logger.warn('MultiAgentManager.start() called more than once');
       return;
@@ -74,7 +74,7 @@ export class MultiAgentManager {
       );
 
       // Build WalletClient — each agent gets its own isolated instance
-      const keypair = this.loadKeypair(config);
+      const keypair = this.loadKeypair(config, password);
       const walletConfig: WalletConfig = {
         rpcUrl: this.rpcUrl,
         limits: config.limits,
@@ -149,8 +149,8 @@ export class MultiAgentManager {
 
   // ── Private ─────────────────────────────────────────────────────────────────
 
-  private loadKeypair(config: AgentConfig): ReturnType<typeof loadKeystore> {
-    const password = process.env['WALLET_PASSWORD'];
+  private loadKeypair(config: AgentConfig, passedPassword?: string): ReturnType<typeof loadKeystore> {
+    const password = passedPassword ?? process.env['WALLET_PASSWORD'];
 
     // In test/dev environments, allow loading from env var
     const envKey = process.env[`WALLET_SECRET_KEY_${config.id.toUpperCase().replace(/-/g, '_')}`]

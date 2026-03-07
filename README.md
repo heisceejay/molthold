@@ -16,6 +16,12 @@ An autonomous, programmable wallet for AI agents operating on Solana devnet. Age
 
 ## Quick Start (< 15 minutes)
 
+### 0. Install dependencies
+
+```bash
+npm install
+```
+
 ### 1. Configure environment
 
 ```bash
@@ -24,11 +30,12 @@ cp .env.example .env
 # Be sure to set a secure string for WALLET_PASSWORD for the keystore.
 ```
 
-### 2. Create your first agent wallet
+### 2. Create your first agent identity
 
 ```bash
-npx tsx src/cli/index.ts wallet create --name agent-1
-# Output: ✓ Created wallet for agent-1
+# This creates the encrypted keystore AND adds the agent to agents.json
+npx tsx src/cli/index.ts agent create --name agent-1
+# Output: ✓ Created Agent: agent-1
 ```
 
 ### 3. Fund with Dev/Test SOL

@@ -95,7 +95,7 @@ export class LLMDecider {
                 return { type: 'noop', params: {}, rationale: 'LLM returned empty response' };
             }
 
-            return this.parseAction(content);
+            return this.parseAction(content, state);
         } catch (err) {
             this.logger.error({ err }, '[LLMDecider] Unexpected error');
             return { type: 'noop', params: {}, rationale: 'Unexpected error' };
@@ -125,11 +125,15 @@ CAPABILITIES:
 3. Portfolio Rebalancing: Maintain healthy asset ratios to support active positions.
 4. Monitoring: Hold if market conditions or balances are unfavorable.
 
-SPENDING LIMITS (Strict Enforcement):
+CURRENT BUDGET CONSTRAINTS:
 - Max per transaction: ${limitsSol.maxPerTx} SOL (${this.limits.maxPerTxLamports} lamports)
 - Max session total: ${limitsSol.maxSession} SOL (${this.limits.maxSessionLamports} lamports)
 
-IMPORTANT: You MUST respect these limits. If an action would exceed the remaining budget or the per-tx cap, you MUST return "noop".
+IMPORTANT RULES FOR ACTIONS:
+- YOU MUST RESPECT THE BUDGET. Check the "remainingBudget" in the current state.
+- If an action would exceed the "remainingBudget", you MUST either SCALE DOWN the amount to fit or return "noop".
+- If "remainingBudget" is very low (e.g. < 0.01 SOL), prefer "noop" to save for fees.
+- Never suggest an action that breaches the "perTxCap".
 
 ACTION TYPES:
 - { "type": "swap", "params": { "inputMint": "string", "outputMint": "string", "amountIn": "string", "slippageBps": 100, "adapter": "jupiter"|"orca"|"best" }, "rationale": "string" }
@@ -143,13 +147,17 @@ RULES:
 - Prioritize Yield: Your mission is to maximize fee generation through LP.
 - Strategic Swapping: While LP is the goal, feel free to swap to acquire tokens if you believe it improves long-term portfolio performance or prepares the wallet for dual-sided positions.
 - Always provide a clear, technical rationale explaining your decision.
-- If unsure or if action would breach limits, return "noop".
 - All amounts must be strings representing BigInt (lamports/atoms).`;
     }
 
     private buildUserMessage(state: AgentState): string {
         // Convert BigInt to strings for JSON serialization
         const serializableState = {
+            urgent_spending_summary: {
+                remaining_budget_sol: Number(state.spendingStatus.remainingBudget) / 1e9,
+                remaining_budget_lamports: state.spendingStatus.remainingBudget.toString(),
+                per_tx_cap_sol: Number(state.spendingStatus.perTxCap) / 1e9,
+            },
             ...state,
             solBalance: state.solBalance.toString(),
             tokenBalances: Object.fromEntries(
@@ -167,7 +175,7 @@ RULES:
         return JSON.stringify(serializableState, null, 2);
     }
 
-    private parseAction(content: string): Action {
+    private parseAction(content: string, state: AgentState): Action {
         try {
             // Strip markdown code fences if present
             const cleaned = content.replace(/^```json\s*|```\s*$/g, '').trim();
@@ -193,8 +201,14 @@ RULES:
                 return this.noop(`Action exceeded per-transaction limit (${amount} > ${this.limits.maxPerTxLamports})`);
             }
 
-            // Note: Session limit is checked at execution time by the wallet, 
-            // but the LLM now sees its spending status to avoid suggesting breaches.
+            // 3. Validate against session remaining budget
+            if (amount > state.spendingStatus.remainingBudget) {
+                this.logger.warn({
+                    amount: amount.toString(),
+                    remaining: state.spendingStatus.remainingBudget.toString()
+                }, `[LLMDecider] Action ${parsed.type} exceeds remaining session budget`);
+                return this.noop(`Action exceeded remaining session budget (${amount} > ${state.spendingStatus.remainingBudget})`);
+            }
 
             return parsed;
         } catch (error) {

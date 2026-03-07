@@ -15,13 +15,16 @@
 import { Command } from 'commander';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
+import { Keypair } from '@solana/web3.js';
 import { env, spendingLimits } from '../../config/env.js';
 import { MultiAgentManager, loadAgentConfigs } from '../../agent/manager.js';
+import { createKeystore } from '../../wallet/keystore.js';
 import { AuditDb } from '../../logger/audit.js';
 import { createLogger } from '../../logger/logger.js';
 import {
   header, subheader, success, info, warn, kv, table,
   formatBalance, formatAuditRows, errorAndExit, fatalError, printLine, c,
+  spinner, promptPassword,
 } from '../output.js';
 import type { AgentConfig } from '../../agent/types.js';
 
@@ -45,6 +48,7 @@ const startCmd = new Command('start')
   .option('--keystore <path>', 'Keystore file path (single-agent mode)')
   .option('--db <path>', 'Audit DB path (overrides AUDIT_DB_PATH)')
   .option('--log-level <level>', 'Log level: trace|debug|info|warn|error', 'info')
+  .option('--password <pass>', 'Decryption password for the keystore')
   .action(async (opts: {
     config?: string;
     name?: string;
@@ -53,6 +57,7 @@ const startCmd = new Command('start')
     keystore?: string;
     db?: string;
     logLevel?: string;
+    password?: string;
   }) => {
     const logger = createLogger({ level: opts.logLevel ?? 'info' });
     const dbPath = resolveAuditDbPath(opts.db);
@@ -101,6 +106,12 @@ const startCmd = new Command('start')
 
     const manager = new MultiAgentManager(configs!, logger, rpcUrl, dbPath);
 
+    // Resolve password if in single-agent mode and not provided
+    let password = opts.password;
+    if (opts.name && !password && !env.WALLET_PASSWORD && process.stdin.isTTY) {
+      password = await promptPassword(`Password for agent "${opts.name}": `);
+    }
+
     // ── Graceful shutdown ───────────────────────────────────────────────────
     let stopping = false;
 
@@ -119,7 +130,7 @@ const startCmd = new Command('start')
 
     // ── Start ───────────────────────────────────────────────────────────────
     try {
-      await manager.start();
+      await manager.start(password);
     } catch (err) {
       fatalError(err, 'manager.start()');
     }
@@ -298,6 +309,100 @@ const stopCmd = new Command('stop')
     }
   });
 
+// ── agent create ──────────────────────────────────────────────────────────────
+
+const createCmd = new Command('create')
+  .description('Create a new agent identity and add it to agents.json')
+  .requiredOption('--name <id>', 'Unique identifier for the new agent')
+  .option('--password <pass>', 'Encryption password (min 8 chars)')
+  .option('--interval <ms>', 'Tick interval in ms', '30000')
+  .option('--config <path>', 'Path to agents.json', 'agents.json')
+  .action(async (opts: {
+    name: string;
+    password?: string;
+    interval: string;
+    config: string;
+  }) => {
+    const { name, config: configPath } = opts;
+
+    if (!/^[\w-]+$/.test(name)) {
+      errorAndExit('Agent name may only contain letters, numbers, hyphens, and underscores.');
+    }
+
+    const keystoresDir = path.resolve(process.cwd(), 'keystores');
+    const kpPath = path.join(keystoresDir, `${name}.keystore.json`);
+
+    if (fs.existsSync(kpPath)) {
+      errorAndExit(`Keystore for agent "${name}" already exists at ${kpPath}.`);
+    }
+
+    let password = opts.password || env.WALLET_PASSWORD;
+    if (!password) {
+      if (!process.stdin.isTTY) {
+        errorAndExit('No password provided. Set --password, WALLET_PASSWORD env var, or run interactively.');
+      }
+      password = await promptPassword(`New password for agent "${name}" (min 8 chars): `);
+    }
+
+    if (password.length < 8) {
+      errorAndExit('Password must be at least 8 characters.');
+    }
+
+    header(`Creating Agent: ${name}`);
+
+    const spin = spinner('Generating keypair and encrypting keystore…');
+    const keypair = Keypair.generate();
+    try {
+      createKeystore(keypair, password, kpPath);
+    } catch (err) {
+      spin.stop();
+      fatalError(err, 'createKeystore');
+    }
+    spin.stop();
+
+    success(`Keystore saved to ${kpPath}`);
+
+    // Update agents.json
+    const fullConfigPath = path.resolve(configPath);
+    let configs: any[] = [];
+    if (fs.existsSync(fullConfigPath)) {
+      try {
+        configs = JSON.parse(fs.readFileSync(fullConfigPath, 'utf8'));
+        if (!Array.isArray(configs)) configs = [];
+      } catch (err) {
+        warn(`Could not parse ${configPath}, starting fresh array.`);
+        configs = [];
+      }
+    }
+
+    if (configs.some((c: any) => c.id === name)) {
+      warn(`Agent "${name}" already exists in ${configPath}. Skipping config update.`);
+    } else {
+      const newConfig = {
+        id: name,
+        keystorePath: path.relative(process.cwd(), kpPath),
+        intervalMs: parseInt(opts.interval, 10),
+        limits: {
+          maxPerTxSol: 0.1,
+          maxSessionSol: 1.0,
+        },
+      };
+      configs.push(newConfig);
+      fs.writeFileSync(fullConfigPath, JSON.stringify(configs, null, 2), 'utf8');
+      success(`Added agent "${name}" to ${configPath}`);
+    }
+
+    printLine('');
+    kv([
+      ['Agent ID', name],
+      ['Public Key', keypair.publicKey.toBase58()],
+      ['Config', fullConfigPath],
+    ]);
+    printLine('');
+    info(`Start this agent with: agentw agent start --name ${name}`);
+    printLine('');
+  });
+
 // ── agent command group ───────────────────────────────────────────────────────
 
 export const agentCommand = new Command('agent')
@@ -305,4 +410,5 @@ export const agentCommand = new Command('agent')
   .addCommand(startCmd)
   .addCommand(statusCmd)
   .addCommand(logCmd)
-  .addCommand(stopCmd);
+  .addCommand(stopCmd)
+  .addCommand(createCmd);
