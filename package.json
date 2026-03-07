@@ -5,7 +5,7 @@
   "type": "module",
   "main": "dist/index.js",
   "bin": {
-    "agentw": "./dist/cli/index.js"
+    "agentw": "./bin/agentw.js"
   },
   "scripts": {
     "build": "tsc",

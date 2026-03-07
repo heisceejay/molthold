@@ -16,10 +16,11 @@ An autonomous, programmable wallet for AI agents operating on Solana devnet. Age
 
 ## Quick Start (< 15 minutes)
 
-### 0. Install dependencies
+### 0. Install and Link
 
 ```bash
 npm install
+npm link # This makes the 'agentw' command available globally in your terminal
 ```
 
 ### 1. Configure environment
