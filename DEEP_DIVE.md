@@ -18,7 +18,7 @@ The system enforces defense-in-depth through three distinct, stacked layers:
 While these structures entirely protect against API compromises, file exfiltration, agent instruction hijacking, and excessive drain attacks, **it does not protect against physical host takeover**. If a malicious actor possesses the user's `$WALLET_PASSWORD` environment variable and host machine access, decryption is trivial via the CLI helper `npx tsx src/cli/index.ts`. 
 
 ## 3. AI Agent Interaction Model
-The underlying AI agents interact with the `Molthold` system strictly via the `Strategy` interface (`src/agent/types.ts`). In the current version, this has been simplified into a single **Universal Strategy** powered by an LLM reasoning core (**Claude 3 Haiku** via OpenRouter).
+The underlying AI agents interact with the `Molthold` system strictly via the `Strategy` interface (`src/agent/types.ts`). In the current version, this has been simplified into a single **Universal Strategy** powered by an LLM reasoning core (**Groq llama-3.3-70b-versatile** primary, **Claude 3 Haiku** via OpenRouter as fallback).
 
 The agent loop works in three primitive phases:
 1. **Gather**: The system snapshots the on-chain state (SOL/token balances).

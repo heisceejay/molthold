@@ -68,7 +68,7 @@ agentw dashboard --config agents.json --port 3000
 
 ```bash
 agentw agent start --name agent-1
-# The agent will automatically use the LLM (Claude 3 Haiku) to decide on optimal actions.
+# The agent will automatically use Groq (llama-3.3-70b, or OpenRouter as fallback) to decide on optimal actions.
 ```
 
 > [!NOTE]
@@ -138,7 +138,7 @@ All configuration is via environment variables. Copy `.env.example` to `.env`.
 ```
 CLI / Observer
      │
- Agent Layer          ← LLM Reasoning Layer (Claude 3 Haiku), Universal Strategy
+ Agent Layer          ← LLM Reasoning Layer (Groq llama-3.3-70b / OpenRouter fallback), Universal Strategy
      │
 Wallet Module ──── Protocol Adapters  ← Jupiter, Orca
      │                    │

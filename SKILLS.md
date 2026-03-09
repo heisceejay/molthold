@@ -17,7 +17,7 @@ in a structured format optimised for LLM context consumption.
 ## LLM Integration
 The wallet uses external LLM APIs for autonomous decision making.
 - **Providers:** Groq (primary), OpenRouter (fallback).
-- **Logic:** If `GROQ_API_KEY` is set, it uses Groq's `llama-3.3-70b-versatile` for ultra-low latency. Otherwise, it falls back to OpenRouter using `claude-3-haiku`.
+- **Logic:** If `GROQ_API_KEY` is set, it uses Groq's `llama-3.3-70b-versatile` for ultra-low latency. Otherwise, it falls back to OpenRouter using `anthropic/claude-3-haiku`.
 
 ---
 
